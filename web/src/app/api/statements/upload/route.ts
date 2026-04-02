@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
-import { parseStatementPDF } from "@/lib/parser-client";
+import { parseStatementBuffer } from "@/lib/pdf-parser";
 import { categorizeTransaction } from "@/lib/categorizer";
 
 export async function POST(req: NextRequest) {
@@ -25,10 +25,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Parse PDF via Python service
+  // Parse PDF (JS parser — no external service needed)
   let parsed;
   try {
-    parsed = await parseStatementPDF(buffer, file.name);
+    parsed = await parseStatementBuffer(buffer);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Error al parsear el PDF";
     return NextResponse.json({ error: msg }, { status: 422 });
@@ -56,11 +56,11 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // Load categories for categorization
+  // Load categories
   const categories = await prisma.category.findMany();
   const categoryMap = new Map(categories.map((c) => [c.name, c.id]));
 
-  // Create statement + summary + transactions in one transaction
+  // Persist everything in one transaction
   const statement = await prisma.$transaction(async (tx) => {
     const stmt = await tx.statement.create({
       data: {
@@ -77,47 +77,45 @@ export async function POST(req: NextRequest) {
     await tx.balanceSummary.create({
       data: {
         statementId: stmt.id,
-        previousBalance: balance_summary.previous_balance,
-        previousBalanceUsd: balance_summary.previous_balance_usd,
-        paymentsApplied: balance_summary.payments_applied,
-        totalConsumption: balance_summary.total_consumption,
-        commissionCuentaFull: balance_summary.commission_cuenta_full,
-        selloTax: balance_summary.sello_tax,
-        ivaTax: balance_summary.iva_tax,
-        iibbTax: balance_summary.iibb_tax,
-        financingInterest: balance_summary.financing_interest,
-        currentBalance: balance_summary.current_balance,
-        currentBalanceUsd: balance_summary.current_balance_usd,
-        minimumPayment: balance_summary.minimum_payment,
-        tnaArs: balance_summary.tna_ars,
-        temArs: balance_summary.tem_ars,
-        teaArs: balance_summary.tea_ars,
-        tnaUsd: balance_summary.tna_usd,
-        temUsd: balance_summary.tem_usd,
-        teaUsd: balance_summary.tea_usd,
+        previousBalance:       balance_summary.previous_balance,
+        previousBalanceUsd:    balance_summary.previous_balance_usd,
+        paymentsApplied:       balance_summary.payments_applied,
+        totalConsumption:      balance_summary.total_consumption,
+        commissionCuentaFull:  balance_summary.commission_cuenta_full,
+        selloTax:              balance_summary.sello_tax,
+        ivaTax:                balance_summary.iva_tax,
+        iibbTax:               balance_summary.iibb_tax,
+        financingInterest:     balance_summary.financing_interest,
+        currentBalance:        balance_summary.current_balance,
+        currentBalanceUsd:     balance_summary.current_balance_usd,
+        minimumPayment:        balance_summary.minimum_payment,
+        tnaArs:                balance_summary.tna_ars,
+        temArs:                balance_summary.tem_ars,
+        teaArs:                balance_summary.tea_ars,
+        tnaUsd:                balance_summary.tna_usd,
+        temUsd:                balance_summary.tem_usd,
+        teaUsd:                balance_summary.tea_usd,
       },
     });
 
     for (const t of transactions) {
       const categoryName = categorizeTransaction(t.merchant_name);
       const categoryId = categoryMap.get(categoryName) ?? categoryMap.get("Otros");
-
-      const normalized = t.merchant_name.trim().replace(/\s+/g, " ");
       const isInstallment = !!(t.installment_current && t.installment_total);
 
       await tx.transaction.create({
         data: {
-          statementId: stmt.id,
-          categoryId: categoryId ?? null,
-          date: new Date(t.date),
-          merchantName: t.merchant_name,
-          normalizedMerchant: normalized,
-          voucherNumber: t.voucher_number,
-          installmentCurrent: t.installment_current,
-          installmentTotal: t.installment_total,
-          amountArs: t.amount_ars,
-          amountUsd: t.amount_usd,
-          cardLastFour: t.card_last_four,
+          statementId:       stmt.id,
+          categoryId:        categoryId ?? null,
+          date:              new Date(t.date),
+          merchantName:      t.merchant_name,
+          normalizedMerchant:t.merchant_name.trim().replace(/\s+/g, " "),
+          voucherNumber:     t.voucher_number,
+          installmentCurrent:t.installment_current,
+          installmentTotal:  t.installment_total,
+          amountArs:         t.amount_ars,
+          amountUsd:         t.amount_usd,
+          cardLastFour:      t.card_last_four,
           isInstallment,
         },
       });
