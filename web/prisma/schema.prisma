@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Bank {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  cards Card[]
+}
+
+model Card {
+  id            String   @id @default(cuid())
+  bankId        String
+  lastFour      String
+  cardNetwork   String
+  cardType      String   @default("Credit")
+  holderName    String
+  accountNumber String?
+  createdAt     DateTime @default(now())
+
+  bank       Bank        @relation(fields: [bankId], references: [id])
+  statements Statement[]
+
+  @@unique([bankId, lastFour])
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  icon      String?
+  color     String?
+  createdAt DateTime @default(now())
+
+  transactions Transaction[]
+}
+
+model Statement {
+  id              String   @id @default(cuid())
+  cardId          String
+  bankName        String
+  periodStart     DateTime
+  periodEnd       DateTime
+  dueDate         DateTime
+  statementNumber String?
+  uploadedAt      DateTime @default(now())
+  rawFilename     String
+  sourceHash      String   @unique
+
+  card           Card           @relation(fields: [cardId], references: [id])
+  balanceSummary BalanceSummary?
+  transactions   Transaction[]
+
+  @@index([cardId, periodEnd])
+}
+
+model BalanceSummary {
+  id                   String  @id @default(cuid())
+  statementId          String  @unique
+  currency             String  @default("ARS")
+  previousBalance      Float   @default(0)
+  previousBalanceUsd   Float?
+  paymentsApplied      Float   @default(0)
+  totalConsumption     Float   @default(0)
+  commissionCuentaFull Float   @default(0)
+  selloTax             Float   @default(0)
+  ivaTax               Float   @default(0)
+  iibbTax              Float   @default(0)
+  financingInterest    Float   @default(0)
+  currentBalance       Float   @default(0)
+  currentBalanceUsd    Float?
+  minimumPayment       Float   @default(0)
+  tnaArs               Float?
+  temArs               Float?
+  teaArs               Float?
+  tnaUsd               Float?
+  temUsd               Float?
+  teaUsd               Float?
+
+  statement Statement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+}
+
+model Transaction {
+  id                 String   @id @default(cuid())
+  statementId        String
+  categoryId         String?
+  date               DateTime
+  merchantName       String
+  normalizedMerchant String?
+  voucherNumber      String?
+  installmentCurrent Int?
+  installmentTotal   Int?
+  amountArs          Float
+  amountUsd          Float?
+  cardLastFour       String?
+  transactionType    String   @default("DEBIT")
+  isInstallment      Boolean  @default(false)
+  isReversal         Boolean  @default(false)
+  createdAt          DateTime @default(now())
+
+  statement Statement  @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  category  Category?  @relation(fields: [categoryId], references: [id])
+
+  @@index([statementId])
+  @@index([date])
+  @@index([categoryId])
+}
