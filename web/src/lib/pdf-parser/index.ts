@@ -3,7 +3,8 @@ import { parseBBVA } from "./bbva";
 import { parseGalicia } from "./galicia";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require("pdf-parse");
+const pdfParseModule = require("pdf-parse");
+const pdfParse = pdfParseModule.default ?? pdfParseModule;
 
 function detectBank(text: string): "BBVA" | "Galicia" {
   const upper = text.toUpperCase();
