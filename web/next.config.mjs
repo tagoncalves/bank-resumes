@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // pdf-parse usa fs internamente — excluirlo del bundle de webpack
+  serverExternalPackages: ["pdf-parse"],
   async headers() {
     return [
       {
