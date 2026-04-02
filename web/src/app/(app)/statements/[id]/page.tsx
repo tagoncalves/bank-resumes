@@ -1,31 +1,27 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { getStatementById } from "@/lib/data";
 import { formatARS, formatUSD, formatDate } from "@/lib/formatters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-async function getStatement(id: string) {
-  const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
-  const res = await fetch(`${baseUrl}/api/statements/${id}`, { cache: "no-store" });
-  if (res.status === 404) return null;
-  return res.json();
-}
-
 export default async function StatementDetailPage({ params }: { params: { id: string } }) {
-  const data = await getStatement(params.id);
+  const data = await getStatementById(params.id);
   if (!data) notFound();
 
   const { card, balanceSummary: bs, transactions } = data;
 
   return (
     <div className="space-y-5">
-      {/* Back */}
-      <Link href="/statements" className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-700">
+      <Link
+        href="/statements"
+        className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-700"
+      >
         <ArrowLeft className="h-4 w-4" /> Resúmenes
       </Link>
 
-      {/* Header card */}
+      {/* Header */}
       <Card>
         <CardContent className="p-5">
           <div className="flex items-start justify-between">
@@ -35,7 +31,9 @@ export default async function StatementDetailPage({ params }: { params: { id: st
               </p>
               <p className="text-sm text-zinc-500">{card.holderName}</p>
               <div className="mt-2 flex gap-4 text-xs text-zinc-500">
-                <span>Período: {formatDate(data.periodStart)} – {formatDate(data.periodEnd)}</span>
+                <span>
+                  Período: {formatDate(data.periodStart)} – {formatDate(data.periodEnd)}
+                </span>
                 <span>Vencimiento: {formatDate(data.dueDate)}</span>
               </div>
             </div>
@@ -44,9 +42,13 @@ export default async function StatementDetailPage({ params }: { params: { id: st
                 {formatARS(bs?.currentBalance ?? 0)}
               </p>
               {bs?.currentBalanceUsd ? (
-                <p className="text-sm font-mono text-zinc-500">{formatUSD(bs.currentBalanceUsd)}</p>
+                <p className="text-sm font-mono text-zinc-500">
+                  {formatUSD(bs.currentBalanceUsd)}
+                </p>
               ) : null}
-              <p className="mt-1 text-xs text-zinc-400">Pago mínimo: {formatARS(bs?.minimumPayment ?? 0)}</p>
+              <p className="mt-1 text-xs text-zinc-400">
+                Pago mínimo: {formatARS(bs?.minimumPayment ?? 0)}
+              </p>
             </div>
           </div>
         </CardContent>
@@ -62,15 +64,25 @@ export default async function StatementDetailPage({ params }: { params: { id: st
             <div className="grid grid-cols-2 gap-0 divide-x divide-zinc-100 text-sm">
               <div className="space-y-2 pr-6">
                 <SummaryRow label="Saldo anterior" value={formatARS(bs.previousBalance)} />
-                <SummaryRow label="Pagos aplicados" value={`- ${formatARS(Math.abs(bs.paymentsApplied))}`} valueClass="text-emerald-600" />
+                <SummaryRow
+                  label="Pagos aplicados"
+                  value={`- ${formatARS(Math.abs(bs.paymentsApplied))}`}
+                  valueClass="text-emerald-600"
+                />
                 <SummaryRow label="Consumos" value={formatARS(bs.totalConsumption)} />
               </div>
               <div className="space-y-2 pl-6">
-                <SummaryRow label="Comisión cuenta full" value={formatARS(bs.commissionCuentaFull)} />
+                <SummaryRow
+                  label="Comisión cuenta full"
+                  value={formatARS(bs.commissionCuentaFull)}
+                />
                 <SummaryRow label="Impuesto de sello" value={formatARS(bs.selloTax)} />
                 <SummaryRow label="IVA" value={formatARS(bs.ivaTax)} />
                 <SummaryRow label="IIBB" value={formatARS(bs.iibbTax)} />
-                <SummaryRow label="Intereses financ." value={formatARS(bs.financingInterest)} />
+                <SummaryRow
+                  label="Intereses financ."
+                  value={formatARS(bs.financingInterest)}
+                />
               </div>
             </div>
             {(bs.tnaArs || bs.temArs || bs.teaArs) && (
@@ -105,15 +117,16 @@ export default async function StatementDetailPage({ params }: { params: { id: st
               </tr>
             </thead>
             <tbody>
-              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-              {(transactions as any[]).map((t: any) => (
+              {transactions.map((t) => (
                 <tr key={t.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
                   <td className="whitespace-nowrap px-5 py-2.5 font-mono text-xs text-zinc-500">
                     {formatDate(t.date)}
                   </td>
                   <td className="px-5 py-2.5">
                     <div className="flex items-center gap-2">
-                      <span className="text-zinc-800">{t.normalizedMerchant || t.merchantName}</span>
+                      <span className="text-zinc-800">
+                        {t.normalizedMerchant || t.merchantName}
+                      </span>
                       {t.isInstallment && (
                         <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600">
                           {t.installmentCurrent}/{t.installmentTotal}
@@ -128,7 +141,10 @@ export default async function StatementDetailPage({ params }: { params: { id: st
                     {t.category ? (
                       <span
                         className="rounded-full px-2 py-0.5 text-[11px] font-medium"
-                        style={{ background: `${t.category.color}20`, color: t.category.color }}
+                        style={{
+                          background: `${t.category.color ?? "#94A3B8"}20`,
+                          color: t.category.color ?? "#94A3B8",
+                        }}
                       >
                         {t.category.name}
                       </span>
@@ -139,7 +155,9 @@ export default async function StatementDetailPage({ params }: { params: { id: st
                   <td className="px-5 py-2.5 text-right font-mono font-medium tabular-nums text-zinc-800">
                     {formatARS(t.amountArs)}
                     {t.amountUsd ? (
-                      <span className="ml-1 text-xs text-zinc-400">({formatUSD(t.amountUsd)})</span>
+                      <span className="ml-1 text-xs text-zinc-400">
+                        ({formatUSD(t.amountUsd)})
+                      </span>
                     ) : null}
                   </td>
                 </tr>

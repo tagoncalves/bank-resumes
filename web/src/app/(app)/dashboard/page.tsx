@@ -1,22 +1,15 @@
+import { getDashboardSummary } from "@/lib/data";
 import SummaryCards from "@/components/dashboard/SummaryCards";
 import SpendingByCategory from "@/components/dashboard/SpendingByCategory";
 import MonthlyTrend from "@/components/dashboard/MonthlyTrend";
 import TopMerchants from "@/components/dashboard/TopMerchants";
 import FeeBreakdown from "@/components/dashboard/FeeBreakdown";
 
-async function getDashboardData() {
-  const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
-  const res = await fetch(`${baseUrl}/api/dashboard/summary?months=6`, {
-    cache: "no-store",
-  });
-  if (!res.ok) return null;
-  return res.json();
-}
-
 export default async function DashboardPage() {
-  const data = await getDashboardData();
+  const data = await getDashboardSummary(6);
+  const hasData = data.monthlyTrend.length > 0 || data.spendingByCategory.length > 0;
 
-  if (!data) {
+  if (!hasData) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
         <p className="text-lg font-semibold text-zinc-700">Sin resúmenes importados</p>
@@ -43,12 +36,10 @@ export default async function DashboardPage() {
         spendingChangePercent={data.spendingChangePercent}
         totalFees={data.feeBreakdown.total}
       />
-
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <MonthlyTrend data={data.monthlyTrend} />
         <SpendingByCategory data={data.spendingByCategory} />
       </div>
-
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <TopMerchants data={data.topMerchants} />
         <FeeBreakdown data={data.feeBreakdown} />
