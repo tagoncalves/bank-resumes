@@ -5,6 +5,7 @@ import { formatARS, formatUSD, formatDate } from "@/lib/formatters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DeleteStatementButton } from "@/components/ui/delete-statement-button";
 
 export default async function StatementDetailPage({ params }: { params: { id: string } }) {
   const data = await getStatementById(params.id);
@@ -14,12 +15,15 @@ export default async function StatementDetailPage({ params }: { params: { id: st
 
   return (
     <div className="space-y-5">
-      <Link
-        href="/statements"
-        className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-700"
-      >
-        <ArrowLeft className="h-4 w-4" /> Resúmenes
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link
+          href="/statements"
+          className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-700"
+        >
+          <ArrowLeft className="h-4 w-4" /> Resúmenes
+        </Link>
+        <DeleteStatementButton id={params.id} />
+      </div>
 
       {/* Header */}
       <Card>

@@ -12,7 +12,7 @@ function detectBank(text: string): "BBVA" | "Galicia" {
 export async function parseStatementBuffer(buffer: Buffer): Promise<ParsedStatement> {
   // Require lazy para evitar ejecución en build-time (pdf-parse usa fs internamente)
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const mod = require("pdf-parse");
+  const mod = require("pdf-parse/lib/pdf-parse.js");
   const pdfParse = mod.default ?? mod;
 
   const pdf = await pdfParse(buffer);
