@@ -9,7 +9,16 @@
       "Bash(py --version)",
       "Bash(npx tsc:*)",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(DATABASE_URL=\"file:./prisma/dev.db\" npm run build)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)",
+      "Bash(curl:*)",
+      "Bash(node -e \"const m = require\\('pdf-parse'\\); console.log\\(typeof m, typeof m.default, Object.keys\\(m\\).slice\\(0,5\\)\\)\")",
+      "Bash(node:*)",
+      "Bash(npx ts-node -e ':*)",
+      "Bash(rm:*)"
     ]
   }
 }
