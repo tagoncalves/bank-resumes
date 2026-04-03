@@ -13,6 +13,19 @@ export default async function StatementDetailPage({ params }: { params: { id: st
 
   const { card, balanceSummary: bs, transactions } = data;
 
+  // Category breakdown: group transactions by category, sort by total desc
+  const catMap = new Map<string, { name: string; color: string | null; total: number; count: number }>();
+  for (const t of transactions) {
+    const key = t.category?.name ?? "Sin categoría";
+    const color = t.category?.color ?? "#94A3B8";
+    const existing = catMap.get(key) ?? { name: key, color, total: 0, count: 0 };
+    existing.total += t.amountArs;
+    existing.count += 1;
+    catMap.set(key, existing);
+  }
+  const categoryBreakdown = Array.from(catMap.values()).sort((a, b) => b.total - a.total);
+  const totalSpend = categoryBreakdown.reduce((s, c) => s + c.total, 0);
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -99,6 +112,49 @@ export default async function StatementDetailPage({ params }: { params: { id: st
                 </div>
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Category breakdown */}
+      {categoryBreakdown.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-zinc-700">
+              Gastos por categoría
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {categoryBreakdown.map((cat) => {
+                const pct = totalSpend > 0 ? (cat.total / totalSpend) * 100 : 0;
+                return (
+                  <div key={cat.name} className="flex items-center gap-3">
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[11px] font-medium w-28 text-center shrink-0"
+                      style={{
+                        background: `${cat.color ?? "#94A3B8"}20`,
+                        color: cat.color ?? "#94A3B8",
+                      }}
+                    >
+                      {cat.name}
+                    </span>
+                    <div className="flex-1 h-1.5 rounded-full bg-zinc-100 overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${pct.toFixed(1)}%`, background: cat.color ?? "#94A3B8" }}
+                      />
+                    </div>
+                    <span className="text-xs text-zinc-400 w-6 text-right shrink-0">
+                      {cat.count}
+                    </span>
+                    <span className="text-xs font-mono font-medium text-zinc-800 tabular-nums w-28 text-right shrink-0">
+                      {formatARS(cat.total)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
       )}
