@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import fs from "fs";
+import path from "path";
 import { prisma } from "@/lib/prisma";
+
+const UPLOADS_DIR = path.join(process.cwd(), "uploads", "statements");
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const statement = await prisma.statement.findUnique({
@@ -23,5 +27,6 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   await prisma.statement.delete({ where: { id: params.id } });
+  try { fs.unlinkSync(path.join(UPLOADS_DIR, `${params.id}.pdf`)); } catch { /* non-fatal */ }
   return NextResponse.json({ ok: true });
 }

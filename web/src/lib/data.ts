@@ -178,3 +178,5 @@ export async function getStatementById(id: string) {
     },
   });
 }
+
+export type StatementWithTransactions = NonNullable<Awaited<ReturnType<typeof getStatementById>>>;

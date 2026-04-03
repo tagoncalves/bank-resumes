@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
+import fs from "fs";
+import path from "path";
 import { prisma } from "@/lib/prisma";
 import { parseStatementBuffer } from "@/lib/pdf-parser";
 import { categorizeTransaction } from "@/lib/categorizer";
+
+const UPLOADS_DIR = path.join(process.cwd(), "uploads", "statements");
 
 export async function POST(req: NextRequest) {
   const formData = await req.formData();
@@ -123,6 +127,14 @@ export async function POST(req: NextRequest) {
 
     return stmt;
   });
+
+  // Save PDF file to disk (best-effort — don't fail the upload if this errors)
+  try {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+    fs.writeFileSync(path.join(UPLOADS_DIR, `${statement.id}.pdf`), buffer);
+  } catch {
+    // non-fatal
+  }
 
   return NextResponse.json(
     {

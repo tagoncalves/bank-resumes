@@ -45,3 +45,36 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ data: transactions, total, page, pageSize: limit });
 }
+
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+  const { statementId, date, merchantName, amountArs, amountUsd, categoryId } = body as {
+    statementId: string;
+    date: string;
+    merchantName: string;
+    amountArs: number;
+    amountUsd?: number;
+    categoryId?: string;
+  };
+
+  if (!statementId || !date || !merchantName || amountArs == null) {
+    return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
+  }
+
+  const tx = await prisma.transaction.create({
+    data: {
+      statementId,
+      date: new Date(date),
+      merchantName: merchantName.trim(),
+      normalizedMerchant: merchantName.trim().replace(/\s+/g, " "),
+      amountArs,
+      amountUsd: amountUsd ?? null,
+      categoryId: categoryId ?? null,
+      source: "MANUAL",
+      transactionType: "DEBIT",
+    },
+    include: { category: true },
+  });
+
+  return NextResponse.json(tx, { status: 201 });
+}

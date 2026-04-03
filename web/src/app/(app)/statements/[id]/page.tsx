@@ -1,19 +1,25 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getStatementById } from "@/lib/data";
+import { prisma } from "@/lib/prisma";
 import { formatARS, formatUSD, formatDate } from "@/lib/formatters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DeleteStatementButton } from "@/components/ui/delete-statement-button";
+import { CategoryPicker } from "@/components/ui/category-picker";
+import { AddTransactionForm } from "@/components/ui/add-transaction-form";
 
 export default async function StatementDetailPage({ params }: { params: { id: string } }) {
-  const data = await getStatementById(params.id);
+  const [data, categories] = await Promise.all([
+    getStatementById(params.id),
+    prisma.category.findMany({ orderBy: { name: "asc" } }),
+  ]);
   if (!data) notFound();
 
   const { card, balanceSummary: bs, transactions } = data;
 
-  // Category breakdown: group transactions by category, sort by total desc
+  // Category breakdown
   const catMap = new Map<string, { name: string; color: string | null; total: number; count: number }>();
   for (const t of transactions) {
     const key = t.category?.name ?? "Sin categoría";
@@ -26,6 +32,8 @@ export default async function StatementDetailPage({ params }: { params: { id: st
   const categoryBreakdown = Array.from(catMap.values()).sort((a, b) => b.total - a.total);
   const totalSpend = categoryBreakdown.reduce((s, c) => s + c.total, 0);
 
+  const manualCount = transactions.filter((t) => (t as { source?: string }).source === "MANUAL").length;
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -35,7 +43,17 @@ export default async function StatementDetailPage({ params }: { params: { id: st
         >
           <ArrowLeft className="h-4 w-4" /> Resúmenes
         </Link>
-        <DeleteStatementButton id={params.id} />
+        <div className="flex items-center gap-2">
+          <a
+            href={`/api/statements/${params.id}/pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100"
+          >
+            <FileText className="h-4 w-4" /> Ver PDF
+          </a>
+          <DeleteStatementButton id={params.id} />
+        </div>
       </div>
 
       {/* Header */}
@@ -48,9 +66,7 @@ export default async function StatementDetailPage({ params }: { params: { id: st
               </p>
               <p className="text-sm text-zinc-500">{card.holderName}</p>
               <div className="mt-2 flex gap-4 text-xs text-zinc-500">
-                <span>
-                  Período: {formatDate(data.periodStart)} – {formatDate(data.periodEnd)}
-                </span>
+                <span>Período: {formatDate(data.periodStart)} – {formatDate(data.periodEnd)}</span>
                 <span>Vencimiento: {formatDate(data.dueDate)}</span>
               </div>
             </div>
@@ -59,9 +75,7 @@ export default async function StatementDetailPage({ params }: { params: { id: st
                 {formatARS(bs?.currentBalance ?? 0)}
               </p>
               {bs?.currentBalanceUsd ? (
-                <p className="text-sm font-mono text-zinc-500">
-                  {formatUSD(bs.currentBalanceUsd)}
-                </p>
+                <p className="text-sm font-mono text-zinc-500">{formatUSD(bs.currentBalanceUsd)}</p>
               ) : null}
               <p className="mt-1 text-xs text-zinc-400">
                 Pago mínimo: {formatARS(bs?.minimumPayment ?? 0)}
@@ -89,17 +103,11 @@ export default async function StatementDetailPage({ params }: { params: { id: st
                 <SummaryRow label="Consumos" value={formatARS(bs.totalConsumption)} />
               </div>
               <div className="space-y-2 pl-6">
-                <SummaryRow
-                  label="Comisión cuenta full"
-                  value={formatARS(bs.commissionCuentaFull)}
-                />
+                <SummaryRow label="Comisión cuenta full" value={formatARS(bs.commissionCuentaFull)} />
                 <SummaryRow label="Impuesto de sello" value={formatARS(bs.selloTax)} />
                 <SummaryRow label="IVA" value={formatARS(bs.ivaTax)} />
                 <SummaryRow label="IIBB" value={formatARS(bs.iibbTax)} />
-                <SummaryRow
-                  label="Intereses financ."
-                  value={formatARS(bs.financingInterest)}
-                />
+                <SummaryRow label="Intereses financ." value={formatARS(bs.financingInterest)} />
               </div>
             </div>
             {(bs.tnaArs || bs.temArs || bs.teaArs) && (
@@ -120,9 +128,7 @@ export default async function StatementDetailPage({ params }: { params: { id: st
       {categoryBreakdown.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm font-medium text-zinc-700">
-              Gastos por categoría
-            </CardTitle>
+            <CardTitle className="text-sm font-medium text-zinc-700">Gastos por categoría</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -132,10 +138,7 @@ export default async function StatementDetailPage({ params }: { params: { id: st
                   <div key={cat.name} className="flex items-center gap-3">
                     <span
                       className="rounded-full px-2 py-0.5 text-[11px] font-medium w-28 text-center shrink-0"
-                      style={{
-                        background: `${cat.color ?? "#94A3B8"}20`,
-                        color: cat.color ?? "#94A3B8",
-                      }}
+                      style={{ background: `${cat.color ?? "#94A3B8"}20`, color: cat.color ?? "#94A3B8" }}
                     >
                       {cat.name}
                     </span>
@@ -145,9 +148,7 @@ export default async function StatementDetailPage({ params }: { params: { id: st
                         style={{ width: `${pct.toFixed(1)}%`, background: cat.color ?? "#94A3B8" }}
                       />
                     </div>
-                    <span className="text-xs text-zinc-400 w-6 text-right shrink-0">
-                      {cat.count}
-                    </span>
+                    <span className="text-xs text-zinc-400 w-6 text-right shrink-0">{cat.count}</span>
                     <span className="text-xs font-mono font-medium text-zinc-800 tabular-nums w-28 text-right shrink-0">
                       {formatARS(cat.total)}
                     </span>
@@ -162,9 +163,18 @@ export default async function StatementDetailPage({ params }: { params: { id: st
       {/* Transactions */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-medium text-zinc-700">
-            Movimientos ({transactions.length})
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-medium text-zinc-700">
+              Movimientos ({transactions.length}
+              {manualCount > 0 && (
+                <span className="ml-1 text-xs font-normal text-zinc-400">
+                  · {manualCount} manual{manualCount !== 1 ? "es" : ""}
+                </span>
+              )}
+              )
+            </CardTitle>
+            <AddTransactionForm statementId={params.id} categories={categories} />
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <table className="w-full text-sm">
@@ -177,51 +187,49 @@ export default async function StatementDetailPage({ params }: { params: { id: st
               </tr>
             </thead>
             <tbody>
-              {transactions.map((t) => (
-                <tr key={t.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
-                  <td className="whitespace-nowrap px-5 py-2.5 font-mono text-xs text-zinc-500">
-                    {formatDate(t.date)}
-                  </td>
-                  <td className="px-5 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-zinc-800">
-                        {t.normalizedMerchant || t.merchantName}
-                      </span>
-                      {t.isInstallment && (
-                        <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600">
-                          {t.installmentCurrent}/{t.installmentTotal}
+              {transactions.map((t) => {
+                const isManual = (t as { source?: string }).source === "MANUAL";
+                return (
+                  <tr key={t.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
+                    <td className="whitespace-nowrap px-5 py-2.5 font-mono text-xs text-zinc-500">
+                      {formatDate(t.date)}
+                    </td>
+                    <td className="px-5 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-zinc-800">
+                          {t.normalizedMerchant || t.merchantName}
                         </span>
-                      )}
-                      {t.cardLastFour && (
-                        <span className="text-[10px] text-zinc-400">•••{t.cardLastFour}</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-5 py-2.5">
-                    {t.category ? (
-                      <span
-                        className="rounded-full px-2 py-0.5 text-[11px] font-medium"
-                        style={{
-                          background: `${t.category.color ?? "#94A3B8"}20`,
-                          color: t.category.color ?? "#94A3B8",
-                        }}
-                      >
-                        {t.category.name}
-                      </span>
-                    ) : (
-                      <span className="text-zinc-400 text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="px-5 py-2.5 text-right font-mono font-medium tabular-nums text-zinc-800">
-                    {formatARS(t.amountArs)}
-                    {t.amountUsd ? (
-                      <span className="ml-1 text-xs text-zinc-400">
-                        ({formatUSD(t.amountUsd)})
-                      </span>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
+                        {t.isInstallment && (
+                          <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600">
+                            {t.installmentCurrent}/{t.installmentTotal}
+                          </span>
+                        )}
+                        {isManual && (
+                          <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
+                            manual
+                          </span>
+                        )}
+                        {t.cardLastFour && (
+                          <span className="text-[10px] text-zinc-400">•••{t.cardLastFour}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-5 py-2.5">
+                      <CategoryPicker
+                        transactionId={t.id}
+                        currentCategoryId={t.categoryId}
+                        categories={categories}
+                      />
+                    </td>
+                    <td className="px-5 py-2.5 text-right font-mono font-medium tabular-nums text-zinc-800">
+                      {formatARS(t.amountArs)}
+                      {t.amountUsd ? (
+                        <span className="ml-1 text-xs text-zinc-400">({formatUSD(t.amountUsd)})</span>
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </CardContent>
