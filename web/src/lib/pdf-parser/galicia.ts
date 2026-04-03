@@ -218,8 +218,10 @@ function parseBalance(lines: string[]): ParsedBalanceSummary {
 
 // ─── Transactions ─────────────────────────────────────────────────────────────
 
-const GALICIA_DATE  = /^(\d{2}-[A-Za-z]{3}-\d{2})/;
-const INSTALLMENT   = /\b(\d{1,2})\/(\d{2})\b/;
+// Transaction dates in Galicia use numeric months: DD-MM-YY (e.g. "28-10-25")
+const GALICIA_DATE  = /^(\d{2}-\d{2}-\d{2,4})/;
+// No trailing \b — installments in Galicia are often concatenated with voucher+amount (e.g. "02/0300248858.300,00")
+const INSTALLMENT   = /\b(\d{1,2})\/(\d{2})/;
 const PURE_DIGITS   = /^\d{4,8}$/;
 const PURE_AMT      = /^(-?)(\d{1,3}(?:\.\d{3})*,\d{2})$/;
 const ENDS_WITH_AMT = /,\d{2}$/;
@@ -229,7 +231,7 @@ const VOUCHER6_AMT  = /\s?(\d{6})(\d{1,3}(?:\.\d{3})*,\d{2})$/;
 const SPACE_AMT     = /\s(\d{1,3}(?:\.\d{3})*,\d{2})$/;
 const AMT_ONLY      = /(\d{1,3}(?:\.\d{3})*,\d{2})$/;
 
-const SKIP_MERCHANT = /^(FECHA|DESCRIPC|IMPORTE|TOTAL\s+A|TARJETA\s+\d|DETALLE|CONSOLIDADO|SALDO|SU\s+PAGO|IMPUESTO|INTERESES|DB\s|IIBB|IVA\s+RG|PAGO\s+MIN)/i;
+const SKIP_MERCHANT = /^(FECHA|DESCRIPC|IMPORTE|TOTAL\s+A|TARJETA\s+\d|DETALLE|CONSOLIDADO|SALDO|SU\s+PAGO|IMPUESTO|INTERESES|DB[\s.]+|IIBB|IVA\s+RG|PAGO\s+MIN)/i;
 
 /** Strip channel prefix (KDLO*, K*, E*, or bare *) from merchant string */
 function extractMerchant(raw: string): string {
