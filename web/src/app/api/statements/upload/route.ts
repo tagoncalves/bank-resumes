@@ -5,10 +5,12 @@ import path from "path";
 import { prisma } from "@/lib/prisma";
 import { parseStatementBuffer } from "@/lib/pdf-parser";
 import { categorizeTransaction } from "@/lib/categorizer";
+import { getSession } from "@/lib/auth";
 
 const UPLOADS_DIR = path.join(process.cwd(), "uploads", "statements");
 
 export async function POST(req: NextRequest) {
+  const session = await getSession();
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
 
@@ -69,6 +71,7 @@ export async function POST(req: NextRequest) {
     const stmt = await tx.statement.create({
       data: {
         cardId: card.id,
+        userId: session?.userId ?? null,
         bankName: header.bank_name,
         periodStart: new Date(header.period_start),
         periodEnd: new Date(header.period_end),
@@ -110,6 +113,7 @@ export async function POST(req: NextRequest) {
       await tx.transaction.create({
         data: {
           statementId:       stmt.id,
+          userId:            session?.userId ?? null,
           categoryId:        categoryId ?? null,
           date:              new Date(t.date),
           merchantName:      t.merchant_name,

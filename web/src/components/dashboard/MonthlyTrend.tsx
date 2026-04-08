@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import {
   BarChart,
   Bar,
@@ -19,6 +20,8 @@ interface MonthData {
 }
 
 export default function MonthlyTrend({ data }: { data: MonthData[] }) {
+  const router = useRouter();
+
   if (!data.length) {
     return (
       <Card>
@@ -37,6 +40,11 @@ export default function MonthlyTrend({ data }: { data: MonthData[] }) {
     label: new Date(d.month + "-01").toLocaleDateString("es-AR", { month: "short", year: "2-digit" }),
   }));
 
+  function handleBarClick(entry: { month?: string }) {
+    if (!entry?.month) return;
+    router.push(`/transactions?month=${entry.month}`);
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -44,7 +52,14 @@ export default function MonthlyTrend({ data }: { data: MonthData[] }) {
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={formatted} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+          <BarChart
+            data={formatted}
+            margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
+            onClick={(e) => {
+              const payload = e?.activePayload?.[0]?.payload;
+              if (payload) handleBarClick(payload);
+            }}
+          >
             <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" />
             <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#71717a" }} />
             <YAxis
@@ -55,10 +70,12 @@ export default function MonthlyTrend({ data }: { data: MonthData[] }) {
             <Tooltip
               formatter={(value) => [formatARS(Number(value)), "Gastos"]}
               contentStyle={{ fontSize: 12, borderColor: "#e4e4e7" }}
+              cursor={{ fill: "#e0e7ff", opacity: 0.5 }}
             />
-            <Bar dataKey="totalSpending" fill="#6366f1" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="totalSpending" fill="#6366f1" radius={[3, 3, 0, 0]} cursor="pointer" />
           </BarChart>
         </ResponsiveContainer>
+        <p className="mt-2 text-center text-[10px] text-zinc-400">Clic en una barra para ver movimientos del mes</p>
       </CardContent>
     </Card>
   );

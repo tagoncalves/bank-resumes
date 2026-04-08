@@ -7,6 +7,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  role         String   @default("USER") // "ADMIN" | "USER"
+  displayName  String?
+  createdAt    DateTime @default(now())
+
+  statements   Statement[]
+  transactions Transaction[]
+}
+
 model Bank {
   id        String   @id @default(cuid())
   name      String   @unique
@@ -43,6 +55,7 @@ model Category {
 
 model Statement {
   id              String   @id @default(cuid())
+  userId          String?
   cardId          String
   bankName        String
   periodStart     DateTime
@@ -53,11 +66,13 @@ model Statement {
   rawFilename     String
   sourceHash      String   @unique
 
+  user           User?          @relation(fields: [userId], references: [id])
   card           Card           @relation(fields: [cardId], references: [id])
   balanceSummary BalanceSummary?
   transactions   Transaction[]
 
   @@index([cardId, periodEnd])
+  @@index([userId])
 }
 
 model BalanceSummary {
@@ -88,7 +103,8 @@ model BalanceSummary {
 
 model Transaction {
   id                 String   @id @default(cuid())
-  statementId        String
+  statementId        String?
+  userId             String?
   categoryId         String?
   date               DateTime
   merchantName       String
@@ -103,12 +119,15 @@ model Transaction {
   source             String   @default("IMPORTED") // "IMPORTED" | "MANUAL"
   isInstallment      Boolean  @default(false)
   isReversal         Boolean  @default(false)
+  deletedAt          DateTime?
   createdAt          DateTime @default(now())
 
-  statement Statement  @relation(fields: [statementId], references: [id], onDelete: Cascade)
-  category  Category?  @relation(fields: [categoryId], references: [id])
+  statement Statement?  @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  user      User?       @relation(fields: [userId], references: [id])
+  category  Category?   @relation(fields: [categoryId], references: [id])
 
   @@index([statementId])
+  @@index([userId])
   @@index([date])
   @@index([categoryId])
 }

@@ -8,13 +8,13 @@ import { ArrowLeft, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DeleteStatementButton } from "@/components/ui/delete-statement-button";
 import { CategoryPicker } from "@/components/ui/category-picker";
-import { AddTransactionForm } from "@/components/ui/add-transaction-form";
 
 export default async function StatementDetailPage({ params }: { params: { id: string } }) {
   const [data, categories] = await Promise.all([
     getStatementById(params.id),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
   ]);
+
   if (!data) notFound();
 
   const { card, balanceSummary: bs, transactions } = data;
@@ -31,8 +31,6 @@ export default async function StatementDetailPage({ params }: { params: { id: st
   }
   const categoryBreakdown = Array.from(catMap.values()).sort((a, b) => b.total - a.total);
   const totalSpend = categoryBreakdown.reduce((s, c) => s + c.total, 0);
-
-  const manualCount = transactions.filter((t) => (t as { source?: string }).source === "MANUAL").length;
 
   return (
     <div className="space-y-5">
@@ -163,18 +161,9 @@ export default async function StatementDetailPage({ params }: { params: { id: st
       {/* Transactions */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-medium text-zinc-700">
-              Movimientos ({transactions.length}
-              {manualCount > 0 && (
-                <span className="ml-1 text-xs font-normal text-zinc-400">
-                  · {manualCount} manual{manualCount !== 1 ? "es" : ""}
-                </span>
-              )}
-              )
-            </CardTitle>
-            <AddTransactionForm statementId={params.id} categories={categories} />
-          </div>
+          <CardTitle className="text-sm font-medium text-zinc-700">
+            Movimientos ({transactions.length})
+          </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <table className="w-full text-sm">
@@ -187,9 +176,7 @@ export default async function StatementDetailPage({ params }: { params: { id: st
               </tr>
             </thead>
             <tbody>
-              {transactions.map((t) => {
-                const isManual = (t as { source?: string }).source === "MANUAL";
-                return (
+              {transactions.map((t) => (
                   <tr key={t.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
                     <td className="whitespace-nowrap px-5 py-2.5 font-mono text-xs text-zinc-500">
                       {formatDate(t.date)}
@@ -202,11 +189,6 @@ export default async function StatementDetailPage({ params }: { params: { id: st
                         {t.isInstallment && (
                           <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600">
                             {t.installmentCurrent}/{t.installmentTotal}
-                          </span>
-                        )}
-                        {isManual && (
-                          <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
-                            manual
                           </span>
                         )}
                         {t.cardLastFour && (
@@ -222,14 +204,17 @@ export default async function StatementDetailPage({ params }: { params: { id: st
                       />
                     </td>
                     <td className="px-5 py-2.5 text-right font-mono font-medium tabular-nums text-zinc-800">
-                      {formatARS(t.amountArs)}
-                      {t.amountUsd ? (
-                        <span className="ml-1 text-xs text-zinc-400">({formatUSD(t.amountUsd)})</span>
-                      ) : null}
+                      <div className="flex items-center justify-end gap-1.5">
+                        {t.amountUsd ? (
+                          <span className="rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-600">USD</span>
+                        ) : null}
+                        {t.amountArs === 0 && t.amountUsd
+                          ? formatUSD(t.amountUsd)
+                          : formatARS(t.amountArs)}
+                      </div>
                     </td>
                   </tr>
-                );
-              })}
+              ))}
             </tbody>
           </table>
         </CardContent>

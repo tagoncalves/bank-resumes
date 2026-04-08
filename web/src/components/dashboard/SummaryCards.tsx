@@ -12,6 +12,8 @@ interface SummaryCardsProps {
   totalSpendingLastMonth: number;
   spendingChangePercent: number;
   totalFees: number;
+  periodLabel: string;
+  isMonthFilter: boolean;
 }
 
 export default function SummaryCards({
@@ -21,27 +23,29 @@ export default function SummaryCards({
   totalSpendingLastMonth,
   spendingChangePercent,
   totalFees,
+  periodLabel,
+  isMonthFilter,
 }: SummaryCardsProps) {
   const isUp = spendingChangePercent > 0;
 
   return (
     <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
       <MetricCard
-        label="Saldo total ARS"
+        label="Gastos del período ARS"
         value={formatARS(totalCurrentBalance)}
         icon={<CreditCard className="h-4 w-4 text-indigo-600" />}
-        sub="Suma de resúmenes activos"
+        sub={periodLabel}
         valueClass="text-zinc-900"
       />
       <MetricCard
-        label="Saldo total USD"
+        label="Gastos del período USD"
         value={formatUSD(totalCurrentBalanceUsd)}
         icon={<DollarSign className="h-4 w-4 text-emerald-600" />}
-        sub="Saldo en dólares"
+        sub={periodLabel}
         valueClass="text-zinc-900"
       />
       <MetricCard
-        label="Gastos este mes"
+        label={isMonthFilter ? "Gastos del mes" : "Gastos este mes"}
         value={formatARS(totalSpendingThisMonth)}
         icon={
           isUp ? (
@@ -62,7 +66,7 @@ export default function SummaryCards({
         label="Comisiones e impuestos"
         value={formatARS(totalFees)}
         icon={<AlertCircle className="h-4 w-4 text-amber-500" />}
-        sub="Período analizado"
+        sub={periodLabel}
         valueClass="text-amber-600"
       />
     </div>

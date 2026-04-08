@@ -2,16 +2,26 @@ import { prisma } from "@/lib/prisma";
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-export async function getDashboardSummary(months = 6) {
-  const since = new Date();
-  since.setMonth(since.getMonth() - months);
-
+export async function getDashboardSummary({
+  months = 6,
+  from,
+  to,
+  userId,
+}: { months?: number; from?: Date; to?: Date; userId?: string } = {}) {
   const now = new Date();
-  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const since = from ?? new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
+  const until = to ?? now;
+
+  // For this-month / last-month comparison use the filter boundaries when a specific month is set
+  const periodStart = from ?? new Date(now.getFullYear(), now.getMonth(), 1);
+  const prevPeriodStart = from
+    ? new Date(from.getFullYear(), from.getMonth() - 1, 1)
+    : new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const periodEnd = to ?? now;
+
+  const userFilter = userId ? { userId } : {};
 
   const [
-    latestStatements,
     thisMonthTx,
     lastMonthTx,
     txByCategory,
@@ -19,41 +29,37 @@ export async function getDashboardSummary(months = 6) {
     topMerchantsRaw,
     feeAgg,
     categories,
+    totalTransactionCount,
   ] = await Promise.all([
-    prisma.statement.findMany({
-      orderBy: { periodEnd: "desc" },
-      take: 20,
-      include: { balanceSummary: true },
-    }),
     prisma.transaction.aggregate({
-      where: { date: { gte: thisMonthStart }, transactionType: "DEBIT" },
+      where: { ...userFilter, date: { gte: periodStart, lte: periodEnd }, transactionType: "DEBIT", deletedAt: null },
       _sum: { amountArs: true },
     }),
     prisma.transaction.aggregate({
-      where: { date: { gte: lastMonthStart, lt: thisMonthStart }, transactionType: "DEBIT" },
+      where: { ...userFilter, date: { gte: prevPeriodStart, lt: periodStart }, transactionType: "DEBIT", deletedAt: null },
       _sum: { amountArs: true },
     }),
     prisma.transaction.groupBy({
       by: ["categoryId"],
-      where: { date: { gte: since }, transactionType: "DEBIT" },
+      where: { ...userFilter, date: { gte: since, lte: until }, transactionType: "DEBIT", deletedAt: null },
       _sum: { amountArs: true },
       _count: { id: true },
       orderBy: { _sum: { amountArs: "desc" } },
     }),
     prisma.transaction.findMany({
-      where: { date: { gte: since }, transactionType: "DEBIT" },
+      where: { ...userFilter, date: { gte: since, lte: until }, transactionType: "DEBIT", deletedAt: null },
       select: { date: true, amountArs: true, amountUsd: true },
     }),
     prisma.transaction.groupBy({
       by: ["normalizedMerchant", "categoryId"],
-      where: { date: { gte: since }, transactionType: "DEBIT" },
+      where: { ...userFilter, date: { gte: since, lte: until }, transactionType: "DEBIT", deletedAt: null },
       _sum: { amountArs: true },
       _count: { id: true },
       orderBy: { _sum: { amountArs: "desc" } },
       take: 10,
     }),
     prisma.balanceSummary.aggregate({
-      where: { statement: { periodEnd: { gte: since } } },
+      where: { statement: { ...(userId ? { userId } : {}), periodEnd: { gte: since, lte: until } } },
       _sum: {
         commissionCuentaFull: true,
         selloTax: true,
@@ -63,18 +69,10 @@ export async function getDashboardSummary(months = 6) {
       },
     }),
     prisma.category.findMany(),
+    prisma.transaction.count({ where: { ...userFilter, date: { gte: since, lte: until }, deletedAt: null } }),
   ]);
 
   const catMap = new Map(categories.map((c) => [c.id, c]));
-
-  const totalCurrentBalance = latestStatements.reduce(
-    (sum, s) => sum + (s.balanceSummary?.currentBalance ?? 0),
-    0
-  );
-  const totalCurrentBalanceUsd = latestStatements.reduce(
-    (sum, s) => sum + (s.balanceSummary?.currentBalanceUsd ?? 0),
-    0
-  );
 
   const thisMonth = thisMonthTx._sum.amountArs ?? 0;
   const lastMonth = lastMonthTx._sum.amountArs ?? 0;
@@ -82,6 +80,7 @@ export async function getDashboardSummary(months = 6) {
     lastMonth === 0 ? 0 : ((thisMonth - lastMonth) / lastMonth) * 100;
 
   const totalCatSpend = txByCategory.reduce((s, g) => s + (g._sum.amountArs ?? 0), 0);
+  const totalPeriodSpendingUsd = txForTrend.reduce((s, t) => s + (t.amountUsd ?? 0), 0);
   const spendingByCategory = txByCategory.map((g) => {
     const cat = g.categoryId ? catMap.get(g.categoryId) : null;
     return {
@@ -125,8 +124,9 @@ export async function getDashboardSummary(months = 6) {
   const financingInterest = feeAgg._sum.financingInterest ?? 0;
 
   return {
-    totalCurrentBalance,
-    totalCurrentBalanceUsd,
+    totalTransactionCount,
+    totalCurrentBalance: totalCatSpend,
+    totalCurrentBalanceUsd: totalPeriodSpendingUsd,
     totalSpendingThisMonth: thisMonth,
     totalSpendingLastMonth: lastMonth,
     spendingChangePercent,
@@ -146,8 +146,11 @@ export async function getDashboardSummary(months = 6) {
 
 // ─── Statements ───────────────────────────────────────────────────────────────
 
-export async function getStatements(page = 1, limit = 50, bankName?: string) {
-  const where = bankName ? { bankName } : {};
+export async function getStatements(page = 1, limit = 50, bankName?: string, userId?: string) {
+  const where = {
+    ...(bankName ? { bankName } : {}),
+    ...(userId ? { userId } : {}),
+  };
   const [total, statements] = await Promise.all([
     prisma.statement.count({ where }),
     prisma.statement.findMany({
