@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getStatements } from "@/lib/data";
+import { getSession } from "@/lib/auth";
 import { formatARS, formatDate } from "@/lib/formatters";
 import { Card } from "@/components/ui/card";
 import { FileText, ArrowRight } from "lucide-react";
@@ -10,7 +11,8 @@ const BANK_COLORS: Record<string, string> = {
 };
 
 export default async function StatementsPage() {
-  const { statements, total } = await getStatements();
+  const session = await getSession();
+  const { statements, total } = await getStatements(1, 50, undefined, session?.userId);
 
   return (
     <div className="space-y-4">
