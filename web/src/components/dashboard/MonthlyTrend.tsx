@@ -45,6 +45,13 @@ export default function MonthlyTrend({ data }: { data: MonthData[] }) {
     router.push(`/transactions?month=${entry.month}`);
   }
 
+  function extractPayload(event: unknown): { month?: string } | null {
+    if (!event || typeof event !== "object") return null;
+
+    const activePayload = (event as { activePayload?: Array<{ payload?: { month?: string } }> }).activePayload;
+    return activePayload?.[0]?.payload ?? null;
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -56,7 +63,7 @@ export default function MonthlyTrend({ data }: { data: MonthData[] }) {
             data={formatted}
             margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
             onClick={(e) => {
-              const payload = e?.activePayload?.[0]?.payload;
+              const payload = extractPayload(e);
               if (payload) handleBarClick(payload);
             }}
           >

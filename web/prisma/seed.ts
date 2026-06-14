@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -18,6 +19,20 @@ const CATEGORIES = [
 ];
 
 async function main() {
+  console.log("Seeding admin user...");
+  const passwordHash = await bcrypt.hash("admin", 10);
+  await prisma.user.upsert({
+    where: { username: "admin" },
+    update: {},
+    create: {
+      username: "admin",
+      passwordHash,
+      role: "ADMIN",
+      displayName: "Administrador",
+    },
+  });
+  console.log("Admin user created.");
+
   console.log("Seeding categories...");
   for (const cat of CATEGORIES) {
     await prisma.category.upsert({

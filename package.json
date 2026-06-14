@@ -1,0 +1,21 @@
+{
+  "name": "bank-resumes",
+  "private": true,
+  "scripts": {
+    "doctor": "node ./scripts/doctor.mjs",
+    "setup": "node ./scripts/setup.mjs",
+    "setup:web": "node ./scripts/setup-web.mjs",
+    "setup:parser": "node ./scripts/setup-parser.mjs",
+    "reset:db": "node ./scripts/reset-db.mjs",
+    "dev": "node ./scripts/dev.mjs",
+    "dev:web": "node ./scripts/run-web-dev.mjs",
+    "dev:parser": "node ./scripts/run-parser-dev.mjs",
+    "dev:worker": "node ./scripts/run-ai-worker.mjs",
+    "prod": "node ./scripts/prod.mjs",
+    "prod:web": "node ./scripts/run-web-prod.mjs",
+    "prod:parser": "node ./scripts/run-parser-prod.mjs",
+    "prod:worker": "node ./scripts/run-ai-worker.mjs",
+    "dev:sh": "sh ./scripts/dev.sh",
+    "prod:sh": "sh ./scripts/prod.sh"
+  }
+}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { toMoneyNumber, toNullableMoneyNumber } from "@/lib/money";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -40,9 +41,13 @@ export async function GET(req: NextRequest) {
     periodStart: s.periodStart,
     periodEnd: s.periodEnd,
     dueDate: s.dueDate,
-    currentBalance: s.balanceSummary?.currentBalance ?? 0,
-    currentBalanceUsd: s.balanceSummary?.currentBalanceUsd ?? null,
-    minimumPayment: s.balanceSummary?.minimumPayment ?? 0,
+    importMethod: s.importMethod,
+    processingStatus: s.processingStatus,
+    analysisProvider: s.analysisProvider,
+    analysisConfidence: s.analysisConfidence,
+    currentBalance: toMoneyNumber(s.balanceSummary?.currentBalance),
+    currentBalanceUsd: toNullableMoneyNumber(s.balanceSummary?.currentBalanceUsd),
+    minimumPayment: toMoneyNumber(s.balanceSummary?.minimumPayment),
     transactionCount: s._count.transactions,
     uploadedAt: s.uploadedAt,
   }));

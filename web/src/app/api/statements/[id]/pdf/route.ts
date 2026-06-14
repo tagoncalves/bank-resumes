@@ -6,9 +6,10 @@ const UPLOADS_DIR = path.join(process.cwd(), "uploads", "statements");
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const filePath = path.join(UPLOADS_DIR, `${params.id}.pdf`);
+  const { id } = await params;
+  const filePath = path.join(UPLOADS_DIR, `${id}.pdf`);
 
   if (!fs.existsSync(filePath)) {
     return NextResponse.json({ error: "PDF no disponible" }, { status: 404 });
@@ -18,7 +19,7 @@ export async function GET(
   return new NextResponse(buffer, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="resumen-${params.id}.pdf"`,
+      "Content-Disposition": `inline; filename="resumen-${id}.pdf"`,
     },
   });
 }

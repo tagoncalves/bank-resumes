@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { toMoneyNumber } from "@/lib/money";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -16,11 +17,11 @@ export async function GET(req: NextRequest) {
   });
 
   const totalCurrentBalance = latestByStatement.reduce(
-    (sum, s) => sum + (s.balanceSummary?.currentBalance ?? 0),
+    (sum, s) => sum + toMoneyNumber(s.balanceSummary?.currentBalance),
     0
   );
   const totalCurrentBalanceUsd = latestByStatement.reduce(
-    (sum, s) => sum + (s.balanceSummary?.currentBalanceUsd ?? 0),
+    (sum, s) => sum + toMoneyNumber(s.balanceSummary?.currentBalanceUsd),
     0
   );
 
@@ -40,8 +41,8 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  const thisMonth = thisMonthTx._sum.amountArs ?? 0;
-  const lastMonth = lastMonthTx._sum.amountArs ?? 0;
+  const thisMonth = toMoneyNumber(thisMonthTx._sum.amountArs);
+  const lastMonth = toMoneyNumber(lastMonthTx._sum.amountArs);
   const spendingChangePercent =
     lastMonth === 0 ? 0 : ((thisMonth - lastMonth) / lastMonth) * 100;
 
@@ -57,7 +58,7 @@ export async function GET(req: NextRequest) {
   const categories = await prisma.category.findMany();
   const catMap = new Map(categories.map((c) => [c.id, c]));
 
-  const totalCatSpend = txByCategory.reduce((s, g) => s + (g._sum.amountArs ?? 0), 0);
+  const totalCatSpend = txByCategory.reduce((s, g) => s + toMoneyNumber(g._sum.amountArs), 0);
 
   const spendingByCategory = txByCategory.map((g) => {
     const cat = g.categoryId ? catMap.get(g.categoryId) : null;
@@ -65,9 +66,9 @@ export async function GET(req: NextRequest) {
       categoryId: g.categoryId ?? "unknown",
       categoryName: cat?.name ?? "Sin categoría",
       color: cat?.color ?? "#94A3B8",
-      total: g._sum.amountArs ?? 0,
+      total: toMoneyNumber(g._sum.amountArs),
       transactionCount: g._count.id,
-      percentage: totalCatSpend > 0 ? ((g._sum.amountArs ?? 0) / totalCatSpend) * 100 : 0,
+      percentage: totalCatSpend > 0 ? (toMoneyNumber(g._sum.amountArs) / totalCatSpend) * 100 : 0,
     };
   });
 
@@ -81,8 +82,8 @@ export async function GET(req: NextRequest) {
   for (const t of txForTrend) {
     const key = `${t.date.getFullYear()}-${String(t.date.getMonth() + 1).padStart(2, "0")}`;
     const existing = monthlyMap.get(key) ?? { totalSpending: 0, totalSpendingUsd: 0, transactionCount: 0 };
-    existing.totalSpending += t.amountArs;
-    existing.totalSpendingUsd += t.amountUsd ?? 0;
+    existing.totalSpending += toMoneyNumber(t.amountArs);
+    existing.totalSpendingUsd += toMoneyNumber(t.amountUsd);
     existing.transactionCount += 1;
     monthlyMap.set(key, existing);
   }
@@ -105,7 +106,7 @@ export async function GET(req: NextRequest) {
     const cat = m.categoryId ? catMap.get(m.categoryId) : null;
     return {
       merchantName: m.normalizedMerchant ?? "Desconocido",
-      total: m._sum.amountArs ?? 0,
+      total: toMoneyNumber(m._sum.amountArs),
       transactionCount: m._count.id,
       categoryName: cat?.name ?? "Otros",
       categoryColor: cat?.color ?? "#94A3B8",
@@ -124,11 +125,11 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  const commissions = feeAgg._sum.commissionCuentaFull ?? 0;
-  const selloTax = feeAgg._sum.selloTax ?? 0;
-  const ivaTax = feeAgg._sum.ivaTax ?? 0;
-  const iibbTax = feeAgg._sum.iibbTax ?? 0;
-  const financingInterest = feeAgg._sum.financingInterest ?? 0;
+  const commissions = toMoneyNumber(feeAgg._sum.commissionCuentaFull);
+  const selloTax = toMoneyNumber(feeAgg._sum.selloTax);
+  const ivaTax = toMoneyNumber(feeAgg._sum.ivaTax);
+  const iibbTax = toMoneyNumber(feeAgg._sum.iibbTax);
+  const financingInterest = toMoneyNumber(feeAgg._sum.financingInterest);
 
   return NextResponse.json({
     totalCurrentBalance,

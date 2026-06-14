@@ -17,6 +17,8 @@ model User {
 
   statements   Statement[]
   transactions Transaction[]
+  importJobs   ImportJob[]
+  reviewedStatements Statement[] @relation("ReviewedStatements")
 }
 
 model Bank {
@@ -58,6 +60,18 @@ model Statement {
   userId          String?
   cardId          String
   bankName        String
+  importMethod    String   @default("NATIVE") // "NATIVE" | "AI"
+  processingStatus String  @default("COMPLETED") // "COMPLETED" | "REVIEW_REQUIRED" | "REJECTED"
+  parserVersion   String?
+  analysisProvider String?
+  analysisModel   String?
+  analysisPromptVersion String?
+  analysisConfidence Float?
+  analysisNotes   String?
+  analysisStructuredJson String?
+  reviewedById    String?
+  reviewedAt      DateTime?
+  reviewNotes     String?
   periodStart     DateTime
   periodEnd       DateTime
   dueDate         DateTime
@@ -67,30 +81,64 @@ model Statement {
   sourceHash      String   @unique
 
   user           User?          @relation(fields: [userId], references: [id])
+  reviewedBy     User?          @relation("ReviewedStatements", fields: [reviewedById], references: [id])
   card           Card           @relation(fields: [cardId], references: [id])
   balanceSummary BalanceSummary?
   transactions   Transaction[]
+  importJobs     ImportJob[]
 
   @@index([cardId, periodEnd])
   @@index([userId])
+  @@index([processingStatus])
+}
+
+model ImportJob {
+  id                 String    @id @default(cuid())
+  userId             String?
+  statementId        String?
+  sourceHash         String    @unique
+  rawFilename        String
+  status             String    @default("QUEUED") // "QUEUED" | "ANALYZING" | "COMPLETED" | "REVIEW_REQUIRED" | "FAILED"
+  bankName           String?
+  importMethod       String    @default("AI") // "AI"
+  analysisProvider   String?
+  analysisModel      String?
+  analysisPromptVersion String?
+  analysisConfidence Float?
+  analysisNotes      String?
+  sourceTextExcerpt  String?
+  aiRequestPayload   String?
+  aiRawResponse      String?
+  aiParsedResult     String?
+  attemptCount       Int       @default(0)
+  lastProcessedAt    DateTime?
+  errorMessage       String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user      User?      @relation(fields: [userId], references: [id])
+  statement Statement? @relation(fields: [statementId], references: [id])
+
+  @@index([userId])
+  @@index([status])
 }
 
 model BalanceSummary {
   id                   String  @id @default(cuid())
   statementId          String  @unique
   currency             String  @default("ARS")
-  previousBalance      Float   @default(0)
-  previousBalanceUsd   Float?
-  paymentsApplied      Float   @default(0)
-  totalConsumption     Float   @default(0)
-  commissionCuentaFull Float   @default(0)
-  selloTax             Float   @default(0)
-  ivaTax               Float   @default(0)
-  iibbTax              Float   @default(0)
-  financingInterest    Float   @default(0)
-  currentBalance       Float   @default(0)
-  currentBalanceUsd    Float?
-  minimumPayment       Float   @default(0)
+  previousBalance      Decimal @default(0)
+  previousBalanceUsd   Decimal?
+  paymentsApplied      Decimal @default(0)
+  totalConsumption     Decimal @default(0)
+  commissionCuentaFull Decimal @default(0)
+  selloTax             Decimal @default(0)
+  ivaTax               Decimal @default(0)
+  iibbTax              Decimal @default(0)
+  financingInterest    Decimal @default(0)
+  currentBalance       Decimal @default(0)
+  currentBalanceUsd    Decimal?
+  minimumPayment       Decimal @default(0)
   tnaArs               Float?
   temArs               Float?
   teaArs               Float?
@@ -112,8 +160,8 @@ model Transaction {
   voucherNumber      String?
   installmentCurrent Int?
   installmentTotal   Int?
-  amountArs          Float
-  amountUsd          Float?
+  amountArs          Decimal
+  amountUsd          Decimal?
   cardLastFour       String?
   transactionType    String   @default("DEBIT")
   source             String   @default("IMPORTED") // "IMPORTED" | "MANUAL"

@@ -1,16 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import fs from "fs";
-import path from "path";
 import { prisma } from "@/lib/prisma";
 import { parseStatementBuffer } from "@/lib/pdf-parser";
-import { categorizeTransaction } from "@/lib/categorizer";
 import { getSession } from "@/lib/auth";
+import { createAIImportJob } from "@/lib/import-jobs";
+import { enforceRateLimit, getClientIp } from "@/lib/rate-limit";
+import { saveStatementPdf } from "@/lib/statement-pdf";
+import { persistParsedStatement } from "@/lib/statement-import";
 
-const UPLOADS_DIR = path.join(process.cwd(), "uploads", "statements");
+function isUnsupportedBankError(error: unknown) {
+  return error instanceof Error && error.message.includes("Banco no reconocido");
+}
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
+  const ip = getClientIp(req);
+  const rateLimit = enforceRateLimit({
+    key: `statement-upload:${ip}`,
+    limit: 10,
+    windowMs: 15 * 60 * 1000,
+  });
+
+  if (!rateLimit.ok) {
+    return NextResponse.json(
+      { error: "Demasiadas cargas recientes. Intentá nuevamente en unos minutos." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+      }
+    );
+  }
+
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
 
@@ -31,121 +51,85 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Parse PDF (JS parser — no external service needed)
+  const existingJob = await prisma.importJob.findUnique({ where: { sourceHash: hash } });
+  if (existingJob) {
+    return NextResponse.json(
+      {
+        error: "DUPLICATE_IMPORT_JOB",
+        jobId: existingJob.id,
+        statementId: existingJob.statementId,
+        processingStatus: existingJob.status,
+      },
+      { status: 409 }
+    );
+  }
+
   let parsed;
+
   try {
     parsed = await parseStatementBuffer(buffer);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al parsear el PDF";
-    return NextResponse.json({ error: msg }, { status: 422 });
-  }
-
-  const { header, balance_summary, transactions } = parsed;
-
-  // Upsert Bank
-  const bank = await prisma.bank.upsert({
-    where: { name: header.bank_name },
-    update: {},
-    create: { name: header.bank_name },
-  });
-
-  // Upsert Card
-  const card = await prisma.card.upsert({
-    where: { bankId_lastFour: { bankId: bank.id, lastFour: header.card_last_four } },
-    update: { holderName: header.holder_name },
-    create: {
-      bankId: bank.id,
-      lastFour: header.card_last_four,
-      cardNetwork: header.card_network,
-      holderName: header.holder_name,
-      accountNumber: header.account_number,
-    },
-  });
-
-  // Load categories
-  const categories = await prisma.category.findMany();
-  const categoryMap = new Map(categories.map((c) => [c.name, c.id]));
-
-  // Persist everything in one transaction
-  const statement = await prisma.$transaction(async (tx) => {
-    const stmt = await tx.statement.create({
-      data: {
-        cardId: card.id,
-        userId: session?.userId ?? null,
-        bankName: header.bank_name,
-        periodStart: new Date(header.period_start),
-        periodEnd: new Date(header.period_end),
-        dueDate: new Date(header.due_date),
-        rawFilename: file.name,
-        sourceHash: hash,
-      },
-    });
-
-    await tx.balanceSummary.create({
-      data: {
-        statementId: stmt.id,
-        previousBalance:       balance_summary.previous_balance,
-        previousBalanceUsd:    balance_summary.previous_balance_usd,
-        paymentsApplied:       balance_summary.payments_applied,
-        totalConsumption:      balance_summary.total_consumption,
-        commissionCuentaFull:  balance_summary.commission_cuenta_full,
-        selloTax:              balance_summary.sello_tax,
-        ivaTax:                balance_summary.iva_tax,
-        iibbTax:               balance_summary.iibb_tax,
-        financingInterest:     balance_summary.financing_interest,
-        currentBalance:        balance_summary.current_balance,
-        currentBalanceUsd:     balance_summary.current_balance_usd,
-        minimumPayment:        balance_summary.minimum_payment,
-        tnaArs:                balance_summary.tna_ars,
-        temArs:                balance_summary.tem_ars,
-        teaArs:                balance_summary.tea_ars,
-        tnaUsd:                balance_summary.tna_usd,
-        temUsd:                balance_summary.tem_usd,
-        teaUsd:                balance_summary.tea_usd,
-      },
-    });
-
-    for (const t of transactions) {
-      const categoryName = categorizeTransaction(t.merchant_name);
-      const categoryId = categoryMap.get(categoryName) ?? categoryMap.get("Otros");
-      const isInstallment = !!(t.installment_current && t.installment_total);
-
-      await tx.transaction.create({
-        data: {
-          statementId:       stmt.id,
-          userId:            session?.userId ?? null,
-          categoryId:        categoryId ?? null,
-          date:              new Date(t.date),
-          merchantName:      t.merchant_name,
-          normalizedMerchant:t.merchant_name.trim().replace(/\s+/g, " "),
-          voucherNumber:     t.voucher_number,
-          installmentCurrent:t.installment_current,
-          installmentTotal:  t.installment_total,
-          amountArs:         t.amount_ars,
-          amountUsd:         t.amount_usd,
-          cardLastFour:      t.card_last_four,
-          isInstallment,
-        },
-      });
+    if (!isUnsupportedBankError(err)) {
+      const msg = err instanceof Error ? err.message : "Error al parsear el PDF";
+      return NextResponse.json({ error: msg }, { status: 422 });
     }
 
-    return stmt;
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: "Banco no reconocido por el parser nativo y DeepSeek no está configurado. Definí DEEPSEEK_API_KEY para habilitar el mapeo asistido por AI." },
+        { status: 422 }
+      );
+    }
+
+    const job = await createAIImportJob({
+      userId: session?.userId ?? null,
+      sourceHash: hash,
+      rawFilename: file.name,
+      pdfBuffer: buffer,
+    });
+
+    return NextResponse.json(
+      {
+        jobId: job.id,
+        importMethod: "AI",
+        processingStatus: "QUEUED",
+        message: "Resumen enviado a la cola de análisis AI. El mapeo se procesará automáticamente.",
+      },
+      { status: 202 }
+    );
+  }
+
+  const importMethod: "NATIVE" | "AI" = "NATIVE";
+  const processingStatus: "COMPLETED" | "REVIEW_REQUIRED" = "COMPLETED";
+  const analysisProvider: string | null = null;
+  const analysisConfidence: number | null = null;
+  const analysisNotes: string[] = [];
+
+  const statement = await persistParsedStatement(parsed, {
+    userId: session?.userId ?? null,
+    sourceHash: hash,
+    rawFilename: file.name,
+    importMethod,
+    processingStatus,
+    analysisProvider,
+    analysisConfidence,
+    analysisNotes,
   });
 
-  // Save PDF file to disk (best-effort — don't fail the upload if this errors)
-  try {
-    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-    fs.writeFileSync(path.join(UPLOADS_DIR, `${statement.id}.pdf`), buffer);
-  } catch {
-    // non-fatal
-  }
+  saveStatementPdf(statement.id, buffer);
 
   return NextResponse.json(
     {
       statementId: statement.id,
-      bank: header.bank_name,
-      periodEnd: header.period_end,
-      transactionCount: transactions.length,
+      bank: parsed.header.bank_name,
+      periodEnd: parsed.header.period_end,
+      transactionCount: parsed.transactions.length,
+      importMethod,
+      processingStatus,
+      analysisProvider,
+      analysisConfidence,
+      analysisNotes,
     },
     { status: 201 }
   );

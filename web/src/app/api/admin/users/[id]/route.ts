@@ -10,7 +10,8 @@ async function guardAdmin() {
   return null;
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const deny = await guardAdmin();
   if (deny) return deny;
 
@@ -20,33 +21,34 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const session = await getSession();
   // Prevent self-demotion
-  if (role && role !== "ADMIN" && session?.userId === params.id) {
+  if (role && role !== "ADMIN" && session?.userId === id) {
     return NextResponse.json({ error: "No podés cambiar tu propio rol" }, { status: 400 });
   }
 
   if (role) {
-    await prisma.$executeRawUnsafe(`UPDATE "User" SET role = ? WHERE id = ?`, role, params.id);
+    await prisma.$executeRawUnsafe(`UPDATE "User" SET role = ? WHERE id = ?`, role, id);
   }
   if (displayName !== undefined) {
-    await prisma.$executeRawUnsafe(`UPDATE "User" SET displayName = ? WHERE id = ?`, displayName, params.id);
+    await prisma.$executeRawUnsafe(`UPDATE "User" SET displayName = ? WHERE id = ?`, displayName, id);
   }
   if (password) {
     const hash = await bcrypt.hash(password, 12);
-    await prisma.$executeRawUnsafe(`UPDATE "User" SET passwordHash = ? WHERE id = ?`, hash, params.id);
+    await prisma.$executeRawUnsafe(`UPDATE "User" SET passwordHash = ? WHERE id = ?`, hash, id);
   }
 
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const deny = await guardAdmin();
   if (deny) return deny;
 
   const session = await getSession();
-  if (session?.userId === params.id) {
+  if (session?.userId === id) {
     return NextResponse.json({ error: "No podés eliminar tu propia cuenta" }, { status: 400 });
   }
 
-  await prisma.$executeRawUnsafe(`DELETE FROM "User" WHERE id = ?`, params.id);
+  await prisma.$executeRawUnsafe(`DELETE FROM "User" WHERE id = ?`, id);
   return NextResponse.json({ ok: true });
 }

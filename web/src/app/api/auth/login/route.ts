@@ -1,9 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { signToken, COOKIE_NAME } from "@/lib/auth";
+import { enforceRateLimit, getClientIp } from "@/lib/rate-limit";
 import bcrypt from "bcryptjs";
 
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req);
+  const rateLimit = enforceRateLimit({
+    key: `login:${ip}`,
+    limit: 5,
+    windowMs: 15 * 60 * 1000,
+  });
+
+  if (!rateLimit.ok) {
+    return NextResponse.json(
+      { error: "Demasiados intentos. Probá nuevamente en unos minutos." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+      }
+    );
+  }
+
   const { username, password } = await req.json() as { username: string; password: string };
 
   if (!username || !password) {
@@ -34,6 +52,7 @@ export async function POST(req: NextRequest) {
   res.cookies.set(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 60 * 60 * 24 * 7, // 7 days
   });

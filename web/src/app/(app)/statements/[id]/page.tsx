@@ -9,9 +9,10 @@ import { cn } from "@/lib/utils";
 import { DeleteStatementButton } from "@/components/ui/delete-statement-button";
 import { CategoryPicker } from "@/components/ui/category-picker";
 
-export default async function StatementDetailPage({ params }: { params: { id: string } }) {
+export default async function StatementDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const [data, categories] = await Promise.all([
-    getStatementById(params.id),
+    getStatementById(id),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
   ]);
 
@@ -43,14 +44,14 @@ export default async function StatementDetailPage({ params }: { params: { id: st
         </Link>
         <div className="flex items-center gap-2">
           <a
-            href={`/api/statements/${params.id}/pdf`}
+            href={`/api/statements/${id}/pdf`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100"
           >
             <FileText className="h-4 w-4" /> Ver PDF
           </a>
-          <DeleteStatementButton id={params.id} />
+          <DeleteStatementButton id={id} />
         </div>
       </div>
 
@@ -66,6 +67,7 @@ export default async function StatementDetailPage({ params }: { params: { id: st
               <div className="mt-2 flex gap-4 text-xs text-zinc-500">
                 <span>Período: {formatDate(data.periodStart)} – {formatDate(data.periodEnd)}</span>
                 <span>Vencimiento: {formatDate(data.dueDate)}</span>
+                <span>{data.importMethod === "AI" ? `Importado con AI${data.processingStatus === "REVIEW_REQUIRED" ? " · revisar" : ""}` : "Importado con parser nativo"}</span>
               </div>
             </div>
             <div className="text-right">
@@ -80,6 +82,25 @@ export default async function StatementDetailPage({ params }: { params: { id: st
               </p>
             </div>
           </div>
+          {data.analysisNotes && (
+            <div className={`mt-4 rounded-md px-4 py-3 text-xs ${data.processingStatus === "REVIEW_REQUIRED" ? "bg-amber-50 text-amber-800" : "bg-violet-50 text-violet-800"}`}>
+              <p className="font-medium">
+                {data.analysisProvider ? `Análisis ${data.analysisProvider}` : "Análisis de importación"}
+                {typeof data.analysisConfidence === "number" ? ` · confianza ${(data.analysisConfidence * 100).toFixed(0)}%` : ""}
+              </p>
+              <p className="mt-1 whitespace-pre-line">{data.analysisNotes}</p>
+            </div>
+          )}
+          {data.reviewNotes && (
+            <div className={`mt-3 rounded-md px-4 py-3 text-xs ${data.processingStatus === "REJECTED" ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`}>
+              <p className="font-medium">
+                Revisión manual
+                {data.reviewedBy ? ` · ${data.reviewedBy.displayName ?? data.reviewedBy.username}` : ""}
+                {data.reviewedAt ? ` · ${new Date(data.reviewedAt).toLocaleString("es-AR")}` : ""}
+              </p>
+              <p className="mt-1 whitespace-pre-line">{data.reviewNotes}</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -9,14 +9,18 @@ function detectBank(text: string): "BBVA" | "Galicia" {
   throw new Error("Banco no reconocido. Verificá que el PDF sea de BBVA o Galicia.");
 }
 
-export async function parseStatementBuffer(buffer: Buffer): Promise<ParsedStatement> {
+export async function extractPdfText(buffer: Buffer): Promise<string> {
   // Require lazy para evitar ejecución en build-time (pdf-parse usa fs internamente)
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const mod = require("pdf-parse/lib/pdf-parse.js");
   const pdfParse = mod.default ?? mod;
 
   const pdf = await pdfParse(buffer);
-  const text: string = pdf.text;
+  return pdf.text as string;
+}
+
+export async function parseStatementBuffer(buffer: Buffer): Promise<ParsedStatement> {
+  const text = await extractPdfText(buffer);
   const lines: string[] = text
     .split("\n")
     .map((l: string) => l.trim())

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { toMoneyNumber, toNullableMoneyNumber } from "@/lib/money";
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
@@ -74,22 +75,23 @@ export async function getDashboardSummary({
 
   const catMap = new Map(categories.map((c) => [c.id, c]));
 
-  const thisMonth = thisMonthTx._sum.amountArs ?? 0;
-  const lastMonth = lastMonthTx._sum.amountArs ?? 0;
+  const thisMonth = toMoneyNumber(thisMonthTx._sum.amountArs);
+  const lastMonth = toMoneyNumber(lastMonthTx._sum.amountArs);
   const spendingChangePercent =
     lastMonth === 0 ? 0 : ((thisMonth - lastMonth) / lastMonth) * 100;
 
-  const totalCatSpend = txByCategory.reduce((s, g) => s + (g._sum.amountArs ?? 0), 0);
-  const totalPeriodSpendingUsd = txForTrend.reduce((s, t) => s + (t.amountUsd ?? 0), 0);
+  const totalCatSpend = txByCategory.reduce((s, g) => s + toMoneyNumber(g._sum.amountArs), 0);
+  const totalPeriodSpendingUsd = txForTrend.reduce((s, t) => s + toMoneyNumber(t.amountUsd), 0);
   const spendingByCategory = txByCategory.map((g) => {
     const cat = g.categoryId ? catMap.get(g.categoryId) : null;
+    const total = toMoneyNumber(g._sum.amountArs);
     return {
       categoryId: g.categoryId ?? "unknown",
       categoryName: cat?.name ?? "Sin categoría",
       color: cat?.color ?? "#94A3B8",
-      total: g._sum.amountArs ?? 0,
+      total,
       transactionCount: g._count.id,
-      percentage: totalCatSpend > 0 ? ((g._sum.amountArs ?? 0) / totalCatSpend) * 100 : 0,
+      percentage: totalCatSpend > 0 ? (total / totalCatSpend) * 100 : 0,
     };
   });
 
@@ -97,8 +99,8 @@ export async function getDashboardSummary({
   for (const t of txForTrend) {
     const key = `${t.date.getFullYear()}-${String(t.date.getMonth() + 1).padStart(2, "0")}`;
     const existing = monthlyMap.get(key) ?? { totalSpending: 0, totalSpendingUsd: 0, transactionCount: 0 };
-    existing.totalSpending += t.amountArs;
-    existing.totalSpendingUsd += t.amountUsd ?? 0;
+    existing.totalSpending += toMoneyNumber(t.amountArs);
+    existing.totalSpendingUsd += toMoneyNumber(t.amountUsd);
     existing.transactionCount += 1;
     monthlyMap.set(key, existing);
   }
@@ -110,18 +112,18 @@ export async function getDashboardSummary({
     const cat = m.categoryId ? catMap.get(m.categoryId) : null;
     return {
       merchantName: m.normalizedMerchant ?? "Desconocido",
-      total: m._sum.amountArs ?? 0,
+      total: toMoneyNumber(m._sum.amountArs),
       transactionCount: m._count.id,
       categoryName: cat?.name ?? "Otros",
       categoryColor: cat?.color ?? "#94A3B8",
     };
   });
 
-  const commissions = feeAgg._sum.commissionCuentaFull ?? 0;
-  const selloTax = feeAgg._sum.selloTax ?? 0;
-  const ivaTax = feeAgg._sum.ivaTax ?? 0;
-  const iibbTax = feeAgg._sum.iibbTax ?? 0;
-  const financingInterest = feeAgg._sum.financingInterest ?? 0;
+  const commissions = toMoneyNumber(feeAgg._sum.commissionCuentaFull);
+  const selloTax = toMoneyNumber(feeAgg._sum.selloTax);
+  const ivaTax = toMoneyNumber(feeAgg._sum.ivaTax);
+  const iibbTax = toMoneyNumber(feeAgg._sum.iibbTax);
+  const financingInterest = toMoneyNumber(feeAgg._sum.financingInterest);
 
   return {
     totalTransactionCount,
@@ -165,13 +167,37 @@ export async function getStatements(page = 1, limit = 50, bankName?: string, use
       },
     }),
   ]);
-  return { total, statements };
+
+  return {
+    total,
+    statements: statements.map((statement) => ({
+      ...statement,
+      balanceSummary: statement.balanceSummary
+        ? {
+            ...statement.balanceSummary,
+            previousBalance: toMoneyNumber(statement.balanceSummary.previousBalance),
+            previousBalanceUsd: toNullableMoneyNumber(statement.balanceSummary.previousBalanceUsd),
+            paymentsApplied: toMoneyNumber(statement.balanceSummary.paymentsApplied),
+            totalConsumption: toMoneyNumber(statement.balanceSummary.totalConsumption),
+            commissionCuentaFull: toMoneyNumber(statement.balanceSummary.commissionCuentaFull),
+            selloTax: toMoneyNumber(statement.balanceSummary.selloTax),
+            ivaTax: toMoneyNumber(statement.balanceSummary.ivaTax),
+            iibbTax: toMoneyNumber(statement.balanceSummary.iibbTax),
+            financingInterest: toMoneyNumber(statement.balanceSummary.financingInterest),
+            currentBalance: toMoneyNumber(statement.balanceSummary.currentBalance),
+            currentBalanceUsd: toNullableMoneyNumber(statement.balanceSummary.currentBalanceUsd),
+            minimumPayment: toMoneyNumber(statement.balanceSummary.minimumPayment),
+          }
+        : null,
+    })),
+  };
 }
 
 export async function getStatementById(id: string) {
-  return prisma.statement.findUnique({
+  const statement = await prisma.statement.findUnique({
     where: { id },
     include: {
+      reviewedBy: { select: { username: true, displayName: true } },
       card: { include: { bank: true } },
       balanceSummary: true,
       transactions: {
@@ -180,6 +206,34 @@ export async function getStatementById(id: string) {
       },
     },
   });
+
+  if (!statement) return null;
+
+  return {
+    ...statement,
+    balanceSummary: statement.balanceSummary
+      ? {
+          ...statement.balanceSummary,
+          previousBalance: toMoneyNumber(statement.balanceSummary.previousBalance),
+          previousBalanceUsd: toNullableMoneyNumber(statement.balanceSummary.previousBalanceUsd),
+          paymentsApplied: toMoneyNumber(statement.balanceSummary.paymentsApplied),
+          totalConsumption: toMoneyNumber(statement.balanceSummary.totalConsumption),
+          commissionCuentaFull: toMoneyNumber(statement.balanceSummary.commissionCuentaFull),
+          selloTax: toMoneyNumber(statement.balanceSummary.selloTax),
+          ivaTax: toMoneyNumber(statement.balanceSummary.ivaTax),
+          iibbTax: toMoneyNumber(statement.balanceSummary.iibbTax),
+          financingInterest: toMoneyNumber(statement.balanceSummary.financingInterest),
+          currentBalance: toMoneyNumber(statement.balanceSummary.currentBalance),
+          currentBalanceUsd: toNullableMoneyNumber(statement.balanceSummary.currentBalanceUsd),
+          minimumPayment: toMoneyNumber(statement.balanceSummary.minimumPayment),
+        }
+      : null,
+    transactions: statement.transactions.map((transaction) => ({
+      ...transaction,
+      amountArs: toMoneyNumber(transaction.amountArs),
+      amountUsd: toNullableMoneyNumber(transaction.amountUsd),
+    })),
+  };
 }
 
 export type StatementWithTransactions = NonNullable<Awaited<ReturnType<typeof getStatementById>>>;

@@ -19,10 +19,12 @@ function prevMonthParam() {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: { month?: string; months?: string };
+  searchParams: Promise<{ month?: string; months?: string }>;
 }) {
+  const sp = await searchParams;
+
   // Default: mes anterior
-  if (!searchParams.month && !searchParams.months) {
+  if (!sp.month && !sp.months) {
     redirect(`/dashboard?month=${prevMonthParam()}`);
   }
 
@@ -30,26 +32,26 @@ export default async function DashboardPage({
   let to: Date | undefined;
   let months = 6;
 
-  if (searchParams.month) {
-    const [y, m] = searchParams.month.split("-").map(Number);
+  if (sp.month) {
+    const [y, m] = sp.month.split("-").map(Number);
     from = new Date(y, m - 1, 1);
     to = new Date(y, m, 0, 23, 59, 59);
-  } else if (searchParams.months) {
-    months = Math.max(1, Math.min(24, parseInt(searchParams.months, 10) || 6));
+  } else if (sp.months) {
+    months = Math.max(1, Math.min(24, parseInt(sp.months, 10) || 6));
   }
 
   const session = await getSession();
   const data = await getDashboardSummary({ months, from, to, userId: session?.userId });
 
-  const periodLabel = searchParams.month
+  const periodLabel = sp.month
     ? new Date(from!.getFullYear(), from!.getMonth(), 1)
         .toLocaleDateString("es-AR", { month: "long", year: "numeric" })
     : `Últimos ${months} ${months === 1 ? "mes" : "meses"}`;
 
   const filter = (
     <DashboardFilter
-      currentMonth={searchParams.month}
-      currentMonths={searchParams.months ? parseInt(searchParams.months, 10) : undefined}
+      currentMonth={sp.month}
+      currentMonths={sp.months ? parseInt(sp.months, 10) : undefined}
     />
   );
 

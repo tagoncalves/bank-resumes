@@ -9,23 +9,34 @@ export interface SessionPayload {
   displayName: string | null;
 }
 
-const SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET ?? "dev-secret-please-change-in-production"
-);
 export const COOKIE_NAME = "auth_token";
 const EXPIRY = "7d";
+
+function getJwtSecret(): Uint8Array {
+  const secret = process.env.JWT_SECRET;
+
+  if (secret) {
+    return new TextEncoder().encode(secret);
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("JWT_SECRET es obligatorio en producción");
+  }
+
+  return new TextEncoder().encode("dev-secret-please-change-in-production");
+}
 
 export async function signToken(payload: SessionPayload): Promise<string> {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(EXPIRY)
-    .sign(SECRET);
+    .sign(getJwtSecret());
 }
 
 export async function verifyToken(token: string): Promise<SessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, SECRET);
+    const { payload } = await jwtVerify(token, getJwtSecret());
     return payload as unknown as SessionPayload;
   } catch {
     return null;
@@ -34,7 +45,7 @@ export async function verifyToken(token: string): Promise<SessionPayload | null>
 
 // Server component / Route handler helper
 export async function getSession(): Promise<SessionPayload | null> {
-  const token = cookies().get(COOKIE_NAME)?.value;
+  const token = (await cookies()).get(COOKIE_NAME)?.value;
   if (!token) return null;
   return verifyToken(token);
 }

@@ -31,6 +31,13 @@ export default function SpendingByCategory({ data, currentMonth, currentMonths }
     router.push(`/transactions?${sp.toString()}`);
   }
 
+  function extractCategoryId(entry: unknown): string | null {
+    if (!entry || typeof entry !== "object") return null;
+
+    const categoryId = (entry as { categoryId?: unknown }).categoryId;
+    return typeof categoryId === "string" && categoryId ? categoryId : null;
+  }
+
   if (!data.length) {
     return (
       <Card>
@@ -62,7 +69,10 @@ export default function SpendingByCategory({ data, currentMonth, currentMonths }
               dataKey="total"
               nameKey="categoryName"
               cursor="pointer"
-              onClick={(entry: CategoryData) => navigateToCategory(entry.categoryId)}
+              onClick={(entry) => {
+                const categoryId = extractCategoryId(entry);
+                if (categoryId) navigateToCategory(categoryId);
+              }}
             >
               {data.map((entry) => (
                 <Cell key={entry.categoryId} fill={entry.color} />

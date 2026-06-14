@@ -1,26 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-};
-
-export function OPTIONS() {
-  return new NextResponse(null, { status: 204, headers: CORS });
-}
+import { optionalMoneyInput, requireMoneyInput, toMoneyNumber, toNullableMoneyNumber } from "@/lib/money";
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const existing = await prisma.transaction.findUnique({
-    where: { id: params.id },
+    where: { id },
     select: { userId: true },
   });
   if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
@@ -57,38 +49,50 @@ export async function PATCH(
     data.merchantName = merchantName.trim();
     data.normalizedMerchant = merchantName.trim().replace(/\s+/g, " ");
   }
-  if (amountArs !== undefined) data.amountArs = amountArs;
-  if (amountUsd !== undefined) data.amountUsd = amountUsd;
+  try {
+    if (amountArs !== undefined) data.amountArs = requireMoneyInput(amountArs, "amountArs");
+    if (amountUsd !== undefined) data.amountUsd = optionalMoneyInput(amountUsd, "amountUsd");
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Importe inválido" },
+      { status: 400 }
+    );
+  }
   if (transactionType !== undefined) data.transactionType = transactionType;
   if (isInstallment !== undefined) data.isInstallment = isInstallment;
   if (installmentCurrent !== undefined) data.installmentCurrent = installmentCurrent;
   if (installmentTotal !== undefined) data.installmentTotal = installmentTotal;
 
   const updated = await prisma.transaction.update({
-    where: { id: params.id },
+    where: { id },
     data,
     include: { category: true },
   });
 
-  return NextResponse.json(updated);
+  return NextResponse.json({
+    ...updated,
+    amountArs: toMoneyNumber(updated.amountArs),
+    amountUsd: toNullableMoneyNumber(updated.amountUsd),
+  });
 }
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const existing = await prisma.transaction.findUnique({
-    where: { id: params.id },
+    where: { id },
     select: { userId: true },
   });
   if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
   if (existing.userId !== session.userId) return NextResponse.json({ error: "Sin acceso" }, { status: 403 });
 
   await prisma.transaction.update({
-    where: { id: params.id },
+    where: { id },
     data: { deletedAt: new Date() },
   });
   return NextResponse.json({ ok: true });

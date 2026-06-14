@@ -2,16 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/auth";
-
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-};
-
-export function OPTIONS() {
-  return new NextResponse(null, { status: 204, headers: CORS });
-}
+import { optionalMoneyInput, requireMoneyInput, toMoneyNumber, toNullableMoneyNumber } from "@/lib/money";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -80,9 +71,19 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  const netTotal = (debitSum._sum.amountArs ?? 0) - (creditSum._sum.amountArs ?? 0);
+  const data = transactions.map((transaction) => ({
+    ...transaction,
+    amountArs: toMoneyNumber(transaction.amountArs),
+    amountUsd: toNullableMoneyNumber(transaction.amountUsd),
+  }));
 
-  return NextResponse.json({ data: transactions, total, page, pageSize: limit, netTotal });
+  return NextResponse.json({
+    data,
+    total,
+    page,
+    pageSize: limit,
+    netTotal: toMoneyNumber(debitSum._sum.amountArs) - toMoneyNumber(creditSum._sum.amountArs),
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -118,6 +119,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
   }
 
+  let parsedAmountArs;
+  let parsedAmountUsd;
+
+  try {
+    parsedAmountArs = requireMoneyInput(amountArs, "amountArs");
+    parsedAmountUsd = optionalMoneyInput(amountUsd, "amountUsd");
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Importe inválido" },
+      { status: 400 }
+    );
+  }
+
   const tx = await prisma.transaction.create({
     data: {
       statementId: statementId ?? null,
@@ -125,8 +139,8 @@ export async function POST(req: NextRequest) {
       date: new Date(date),
       merchantName: merchantName.trim(),
       normalizedMerchant: merchantName.trim().replace(/\s+/g, " "),
-      amountArs,
-      amountUsd: amountUsd ?? null,
+      amountArs: parsedAmountArs,
+      amountUsd: parsedAmountUsd ?? null,
       categoryId: categoryId ?? null,
       source: "MANUAL",
       transactionType: transactionType ?? "DEBIT",
@@ -137,5 +151,12 @@ export async function POST(req: NextRequest) {
     include: { category: true },
   });
 
-  return NextResponse.json(tx, { status: 201 });
+  return NextResponse.json(
+    {
+      ...tx,
+      amountArs: toMoneyNumber(tx.amountArs),
+      amountUsd: toNullableMoneyNumber(tx.amountUsd),
+    },
+    { status: 201 }
+  );
 }

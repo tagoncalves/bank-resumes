@@ -52,6 +52,11 @@ export default async function StatementsPage() {
                       •••• {s.card.lastFour}
                     </span>
                     <span className="text-xs text-zinc-400">{s.card.cardNetwork}</span>
+                    {s.importMethod === "AI" && (
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${s.processingStatus === "REVIEW_REQUIRED" ? "bg-amber-100 text-amber-700" : "bg-violet-100 text-violet-700"}`}>
+                        {s.processingStatus === "REVIEW_REQUIRED" ? "AI · revisar" : "AI"}
+                      </span>
+                    )}
                   </div>
                   <div className="mt-1 flex gap-4 text-xs text-zinc-500">
                     <span>Cierre: {formatDate(s.periodEnd)}</span>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, DragEvent } from "react";
+import { useEffect, useRef, useState, DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, FileText, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,9 +9,10 @@ import { cn } from "@/lib/utils";
 
 interface FileStatus {
   file: File;
-  status: "pending" | "uploading" | "done" | "error" | "duplicate";
+  status: "pending" | "uploading" | "processing" | "done" | "error" | "duplicate";
   message?: string;
   statementId?: string;
+  jobId?: string;
 }
 
 export default function UploadPage() {
@@ -20,6 +21,70 @@ export default function UploadPage() {
   const [files, setFiles] = useState<FileStatus[]>([]);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    const processingItems = files.filter((file) => file.status === "processing" && file.jobId);
+    if (!processingItems.length) return;
+
+    const intervalId = window.setInterval(async () => {
+      for (const item of processingItems) {
+        try {
+          const res = await fetch(`/api/import-jobs/${item.jobId}`);
+          const json = await res.json();
+
+          if (!res.ok) {
+            throw new Error(json.error ?? "No se pudo consultar el estado del análisis");
+          }
+
+          if (json.status === "QUEUED" || json.status === "ANALYZING") {
+            continue;
+          }
+
+          if (json.status === "FAILED") {
+            setFiles((prev) =>
+              prev.map((f) =>
+                f.file === item.file
+                  ? { ...f, status: "error", message: json.errorMessage ?? "Falló el análisis AI" }
+                  : f
+              )
+            );
+            continue;
+          }
+
+          const aiMessage = json.status === "REVIEW_REQUIRED"
+            ? `${json.bankName ?? "Banco detectado"} · AI · revisión sugerida`
+            : `${json.bankName ?? "Banco detectado"} · AI · consistencia validada`;
+
+          setFiles((prev) =>
+            prev.map((f) =>
+              f.file === item.file
+                ? {
+                    ...f,
+                    status: "done",
+                    statementId: json.statementId,
+                    message: aiMessage,
+                  }
+                : f
+            )
+          );
+        } catch (error) {
+          setFiles((prev) =>
+            prev.map((f) =>
+              f.file === item.file
+                ? {
+                    ...f,
+                    status: "error",
+                    message: error instanceof Error ? error.message : "Error consultando el análisis AI",
+                  }
+                : f
+            )
+          );
+        }
+      }
+    }, 2500);
+
+    return () => window.clearInterval(intervalId);
+  }, [files]);
 
   function addFiles(newFiles: File[]) {
     const pdfs = newFiles.filter((f) => f.type === "application/pdf" || f.name.endsWith(".pdf"));
@@ -41,7 +106,7 @@ export default function UploadPage() {
 
     for (const item of pending) {
       setFiles((prev) =>
-        prev.map((f) => (f.file === item.file ? { ...f, status: "uploading" } : f))
+        prev.map((f) => (f.file === item.file ? { ...f, status: "uploading", message: "Analizando y procesando el PDF..." } : f))
       );
 
       const formData = new FormData();
@@ -55,7 +120,27 @@ export default function UploadPage() {
           setFiles((prev) =>
             prev.map((f) =>
               f.file === item.file
-                ? { ...f, status: "done", message: `${json.bank} · ${json.transactionCount} movimientos`, statementId: json.statementId }
+                ? {
+                    ...f,
+                    status: "done",
+                    message: json.importMethod === "AI"
+                      ? `${json.bank} · ${json.transactionCount} movimientos · AI ${json.processingStatus === "REVIEW_REQUIRED" ? "· revisión sugerida" : "· consistencia validada"}`
+                      : `${json.bank} · ${json.transactionCount} movimientos`,
+                    statementId: json.statementId,
+                  }
+                : f
+            )
+          );
+        } else if (res.status === 202) {
+          setFiles((prev) =>
+            prev.map((f) =>
+              f.file === item.file
+                ? {
+                    ...f,
+                    status: "processing",
+                    message: json.message ?? "Resumen enviado a análisis AI",
+                    jobId: json.jobId,
+                  }
                 : f
             )
           );
@@ -63,7 +148,13 @@ export default function UploadPage() {
           setFiles((prev) =>
             prev.map((f) =>
               f.file === item.file
-                ? { ...f, status: "duplicate", message: "Ya fue importado", statementId: json.existingStatementId }
+                ? {
+                    ...f,
+                    status: json.jobId && !json.statementId ? "processing" : "duplicate",
+                    message: json.jobId && !json.statementId ? "Este PDF ya está siendo analizado por AI" : "Ya fue importado",
+                    statementId: json.existingStatementId ?? json.statementId,
+                    jobId: json.jobId,
+                  }
                 : f
             )
           );
@@ -104,7 +195,7 @@ export default function UploadPage() {
         </div>
         <div className="text-center">
           <p className="text-sm font-medium text-zinc-700">Arrastrá o hacé clic para seleccionar</p>
-          <p className="text-xs text-zinc-400 mt-0.5">Solo archivos PDF · BBVA y Galicia</p>
+          <p className="text-xs text-zinc-400 mt-0.5">PDFs · BBVA y Galicia nativos · otros bancos con fallback AI si DeepSeek está configurado</p>
         </div>
         <input
           ref={inputRef}
@@ -153,10 +244,10 @@ export default function UploadPage() {
             Importar {files.filter((f) => f.status === "pending").length} archivo{files.filter((f) => f.status === "pending").length !== 1 ? "s" : ""}
           </Button>
         )}
-        {uploading && (
-          <Button disabled className="flex-1">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Importando...
+          {uploading && (
+            <Button disabled className="flex-1">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Importando...
           </Button>
         )}
         {allDone && (
@@ -176,6 +267,7 @@ export default function UploadPage() {
 
 function StatusIcon({ status }: { status: FileStatus["status"] }) {
   if (status === "uploading") return <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />;
+  if (status === "processing") return <Loader2 className="h-4 w-4 animate-spin text-violet-500" />;
   if (status === "done") return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
   if (status === "duplicate") return <CheckCircle2 className="h-4 w-4 text-amber-400" />;
   if (status === "error") return <XCircle className="h-4 w-4 text-red-500" />;

@@ -48,3 +48,22 @@ export interface ParsedStatement {
   transactions: ParsedTransaction[];
   parser_version: string;
 }
+
+export interface ParsedStatementConsistency {
+  passed: boolean;
+  confidence: number;
+  notes: string[];
+}
+
+export interface AIParsedStatement extends ParsedStatement {
+  consistency: ParsedStatementConsistency;
+}
+
+export interface AIAnalysisArtifacts {
+  source_text_excerpt: string;
+  request_payload: string;
+  raw_response: string;
+  parsed_result_json: string;
+  model: string;
+  prompt_version: string;
+}
