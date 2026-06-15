@@ -1,8 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { analyzePayslipWithDeepSeek } from "@/lib/ai/deepseek";
+import { analyzeWithRetry } from "@/lib/ai/retry";
 import { extractPdfText } from "@/lib/pdf-parser";
 import { money } from "@/lib/money";
 import { readPendingPayslipPdf } from "@/lib/statement-pdf";
+import { createAiParserFromAnalysis } from "@/lib/ai/parser-generator";
 
 function aiConfigured() {
   return !!process.env.DEEPSEEK_API_KEY;
@@ -44,8 +46,11 @@ export async function processNextQueuedPayslip() {
   try {
     const pdfBuffer = readPendingPayslipPdf(nextPayslip.id);
     const pdfText = await extractPdfText(pdfBuffer);
-    const analysis = await analyzePayslipWithDeepSeek(pdfText, nextPayslip.rawFilename);
-    const processingStatus = analysis.payslip.consistency.passed ? "COMPLETED" : "REVIEW_REQUIRED";
+
+    const { result: analysis, attempts, errors } = await analyzeWithRetry(
+      (previousErrors) => analyzePayslipWithDeepSeek(pdfText, nextPayslip.rawFilename, previousErrors),
+    );
+    const processingStatus = "REVIEW_REQUIRED";
 
     await prisma.$transaction(async (tx) => {
       const salaryCategory = await tx.category.upsert({
@@ -88,7 +93,7 @@ export async function processNextQueuedPayslip() {
           analysisModel: analysis.artifacts.model,
           analysisPromptVersion: analysis.artifacts.prompt_version,
           analysisConfidence: analysis.payslip.consistency.confidence,
-          analysisNotes: analysis.payslip.consistency.notes.join("\n") || null,
+          analysisNotes: [...analysis.payslip.consistency.notes, ...(attempts > 1 ? [`Reintentos: ${attempts}/${5}`] : [])].join("\n") || null,
           analysisStructuredJson: analysis.artifacts.parsed_result_json,
           incomeTransaction: {
             connect: { id: incomeTransaction.id },
@@ -104,14 +109,29 @@ export async function processNextQueuedPayslip() {
       });
     });
 
+    await createAiParserFromAnalysis({
+      sourceType: "PAYSLIP",
+      payslipId: nextPayslip.id,
+      pdfText,
+      rawFilename: nextPayslip.rawFilename,
+      employerName: analysis.payslip.employer_name,
+      parserFields: analysis.parserFields,
+    });
+
     return { processed: true as const, payslipId: nextPayslip.id };
   } catch (error) {
+    const msg = error instanceof AggregateError
+      ? error.message
+      : error instanceof Error
+        ? error.message
+        : "Error al procesar el recibo con AI";
+
     await prisma.payslip.update({
       where: { id: nextPayslip.id },
       data: {
         processingStatus: "FAILED",
         analysisProvider: "AI",
-        analysisNotes: error instanceof Error ? error.message : "Error al procesar el recibo con AI",
+        analysisNotes: msg,
       },
     });
     throw error;

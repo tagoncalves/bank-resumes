@@ -25,6 +25,7 @@ model User {
   reviewedStatements Statement[] @relation("ReviewedStatements")
   aiBans AiBan[]
   aiBanPardons AiBan[] @relation("BanPardon")
+  aiParserReviews AiParser[] @relation("AiParserReviewer")
 }
 
 model AiBan {
@@ -69,6 +70,7 @@ model Payslip {
 
   user              User?        @relation(fields: [userId], references: [id])
   incomeTransaction Transaction? @relation("PayslipIncomeTransaction", fields: [incomeTransactionId], references: [id])
+  aiParsers         AiParser[]
 
   @@index([userId])
   @@index([uploadedAt])
@@ -139,6 +141,7 @@ model Statement {
   balanceSummary BalanceSummary?
   transactions   Transaction[]
   importJobs     ImportJob[]
+  aiParsers      AiParser[]
 
   @@index([cardId, periodEnd])
   @@index([userId])
@@ -232,4 +235,31 @@ model Transaction {
   @@index([userId])
   @@index([date])
   @@index([categoryId])
+}
+
+model AiParser {
+  id              String   @id @default(cuid())
+  payslipId       String?
+  statementId     String?
+  parserCode      String
+  filePath        String
+  formatSignature String
+  sourceType      String   // "PAYSLIP" | "STATEMENT"
+  bankName        String?
+  employerName    String?
+  status          String   @default("PENDING_REVIEW") // PENDING_REVIEW | APPROVED | REJECTED
+  confidence      Float?
+  notes           String?
+  reviewedById    String?
+  reviewedAt      DateTime?
+  createdAt       DateTime @default(now())
+
+  reviewedBy User? @relation("AiParserReviewer", fields: [reviewedById], references: [id])
+
+  payslip   Payslip?   @relation(fields: [payslipId], references: [id])
+  statement Statement? @relation(fields: [statementId], references: [id])
+
+  @@index([status])
+  @@index([formatSignature])
+  @@index([sourceType])
 }

@@ -8,6 +8,7 @@ import { extractPdfText } from "@/lib/pdf-parser";
 import { parsePayslipBuffer } from "@/lib/payslip-parser";
 import { enforceRateLimit, getClientIp } from "@/lib/rate-limit";
 import { savePendingPayslipPdf, savePayslipPdf } from "@/lib/statement-pdf";
+import { createAiParserFromAnalysis, findMatchingAiParsers } from "@/lib/ai/parser-generator";
 
 export async function POST(req: NextRequest) {
   try {
@@ -88,9 +89,44 @@ export async function POST(req: NextRequest) {
         analysisStructuredJson: null,
       };
     } catch {
+      const pdfText = await extractPdfText(buffer);
+
+      // Try matching AI-generated parsers first
+      const matches = await findMatchingAiParsers(pdfText, "PAYSLIP");
+      if (matches.length > 0) {
+        const queuedPayslip = await prisma.payslip.create({
+          data: {
+            rawFilename: file.name,
+            sourceHash: hash,
+            processingStatus: "QUEUED",
+            analysisProvider: "AI",
+            ...(session?.userId ? { user: { connect: { id: session.userId } } } : {}),
+          },
+        });
+        savePendingPayslipPdf(queuedPayslip.id, buffer);
+        return NextResponse.json(
+          {
+            payslipId: queuedPayslip.id,
+            processingStatus: "QUEUED",
+            importMethod: "AI",
+            message: `Se encontró un parser AI similar (${matches[0].employerName ?? matches[0].id}). El recibo se procesará en segundo plano.`,
+          },
+          { status: 202 }
+        );
+      }
+
       try {
-        const pdfText = await extractPdfText(buffer);
         const analysis = await analyzePayslipWithDeepSeek(pdfText, file.name);
+
+        // Generate parser from successful analysis
+        await createAiParserFromAnalysis({
+          sourceType: "PAYSLIP",
+          pdfText,
+          rawFilename: file.name,
+          employerName: analysis.payslip.employer_name,
+          parserFields: analysis.parserFields,
+        });
+
         mappedPayslip = {
           employerName: analysis.payslip.employer_name,
           bankName: undefined,

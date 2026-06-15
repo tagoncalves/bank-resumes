@@ -7,6 +7,8 @@ import { createAIImportJob } from "@/lib/import-jobs";
 import { enforceRateLimit, getClientIp } from "@/lib/rate-limit";
 import { saveStatementPdf } from "@/lib/statement-pdf";
 import { persistParsedStatement } from "@/lib/statement-import";
+import { extractPdfText } from "@/lib/pdf-parser";
+import { findMatchingAiParsers } from "@/lib/ai/parser-generator";
 
 function isUnsupportedBankError(error: unknown) {
   return error instanceof Error && error.message.includes("Banco no reconocido");
@@ -72,6 +74,19 @@ export async function POST(req: NextRequest) {
     if (!isUnsupportedBankError(err)) {
       const msg = err instanceof Error ? err.message : "Error al parsear el PDF";
       return NextResponse.json({ error: msg }, { status: 422 });
+    }
+
+    // Try matching AI-generated parsers first
+    const pdfText = await extractPdfText(buffer);
+    const matches = await findMatchingAiParsers(pdfText, "STATEMENT");
+    if (matches.length > 0) {
+      return NextResponse.json(
+        {
+          message: "Se encontró un parser generado por AI para este formato. Usá la opción de reprocesar desde la bandeja de revisión.",
+          matchedParsers: matches.map((m) => ({ id: m.id, bankName: m.bankName })),
+        },
+        { status: 202 }
+      );
     }
 
     const apiKey = process.env.DEEPSEEK_API_KEY;

@@ -1,7 +1,13 @@
 import type { AIAnalysisArtifacts, AIParsedStatement, ParsedBalanceSummary, ParsedHeader, ParsedTransaction } from "@/lib/pdf-parser/types";
 
-export const DEEPSEEK_PROMPT_VERSION = "2026-06-13-v1";
-export const PAYSLIP_AI_PROMPT_VERSION = "2026-06-14-v1";
+export const DEEPSEEK_PROMPT_VERSION = "2026-06-15-v2";
+export const PAYSLIP_AI_PROMPT_VERSION = "2026-06-15-v2";
+
+export type ParserField = {
+  fieldName: string;
+  labels: string[];
+  valuePosition: "right";
+};
 
 export type AIParsedPayslip = {
   employer_name: string;
@@ -15,6 +21,7 @@ export type AIParsedPayslip = {
     confidence: number;
     notes: string[];
   };
+  parser_fields: ParserField[];
 };
 
 type DeepSeekChatResponse = {
@@ -185,6 +192,29 @@ function normalizeConsistency(value: unknown, localNotes: string[]) {
   };
 }
 
+function normalizeParserFields(value: unknown): ParserField[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is ParserField => {
+      if (!item || typeof item !== "object") return false;
+      const f = item as Record<string, unknown>;
+      return (
+        typeof f.fieldName === "string" &&
+        Array.isArray(f.labels) &&
+        f.labels.length > 0 &&
+        f.labels.every((l: unknown) => typeof l === "string")
+      );
+    })
+    .map((item) => {
+      const f = item as Record<string, unknown>;
+      return {
+        fieldName: f.fieldName as string,
+        labels: (f.labels as string[]).map((l) => l.trim()).filter(Boolean),
+        valuePosition: "right" as const,
+      };
+    });
+}
+
 function evaluateLocalConsistency(header: ParsedHeader, balanceSummary: ParsedBalanceSummary, transactions: ParsedTransaction[]): string[] {
   const notes: string[] = [];
 
@@ -215,23 +245,39 @@ function evaluateLocalConsistency(header: ParsedHeader, balanceSummary: ParsedBa
   return notes;
 }
 
-export async function analyzeStatementWithDeepSeek(pdfText: string, filename: string): Promise<{
+export async function analyzeStatementWithDeepSeek(
+  pdfText: string,
+  filename: string,
+  previousErrors?: string[],
+): Promise<{
   statement: AIParsedStatement;
+  parserFields: ParserField[];
   artifacts: AIAnalysisArtifacts;
 }> {
   const { apiKey, baseUrl, model } = getDeepSeekConfig();
   const sourceTextExcerpt = pdfText.slice(0, 40000);
 
+  const errorContext = previousErrors?.length
+    ? `\n\nLos intentos anteriores fallaron con estos errores:\n${previousErrors.map((e, i) => `${i + 1}. ${e}`).join("\n")}\nCorregí el análisis según estos errores.`
+    : "";
+
   const prompt = [
     "Sos un analista experto en resumenes de tarjeta argentinos.",
     "Debés leer el texto OCR de un PDF y devolver exclusivamente JSON válido.",
-    "Extraé: header, balance_summary, transactions y consistency.",
+    "Extraé: header, balance_summary, transactions, parser_fields y consistency.",
     "No omitas bank_name, holder_name, card_last_four, card_network, period_start, period_end, due_date.",
     "Usá fechas en formato YYYY-MM-DD.",
     "Usá montos numéricos, sin símbolos de moneda ni separadores de miles.",
     "En consistency devolvé passed:boolean, confidence:0..1 y notes:string[].",
     "Si una transacción no tiene amount_usd, dejala vacía.",
+    "Además, devolvé un array \"parser_fields\" que describa cómo se encuentran los campos en el PDF.",
+    "Cada elemento de parser_fields debe tener:",
+    "  - \"fieldName\": nombre del campo (bank_name, holder_name, card_last_four, card_network, period_start, period_end, due_date, previous_balance, payments_applied, total_consumption, commission_cuenta_full, sello_tax, iva_tax, iibb_tax, financing_interest, current_balance, minimum_payment).",
+    "  - \"labels\": array con el texto exacto de TODAS las etiquetas y sinónimos encontrados en el PDF para este campo (ej: para previous_balance podría ser [\"Saldo Anterior\", \"Saldo Previo\", \"Saldo Anterior\"]).",
+    "  - \"valuePosition\": siempre \"right\" (el valor está a la derecha de la etiqueta en la misma línea, típico de tablas).",
+    "Incluí TODOS los campos que pudiste identificar en el PDF.",
     `Archivo: ${filename}`,
+    errorContext,
     "Texto del PDF:",
     sourceTextExcerpt,
   ].join("\n\n");
@@ -286,16 +332,20 @@ export async function analyzeStatementWithDeepSeek(pdfText: string, filename: st
   const localNotes = evaluateLocalConsistency(header, balanceSummary, transactions);
   const consistency = normalizeConsistency(normalized.consistency, localNotes);
 
+  const parserFields = normalizeParserFields(normalized.parser_fields);
+
   const statement: AIParsedStatement = {
     header,
     balance_summary: balanceSummary,
     transactions,
     parser_version: `deepseek:${model}`,
     consistency,
+    parser_fields: parserFields,
   };
 
   return {
     statement,
+    parserFields,
     artifacts: {
       source_text_excerpt: sourceTextExcerpt,
       request_payload: requestPayload,
@@ -335,11 +385,17 @@ function normalizePayslip(value: unknown): AIParsedPayslip {
     net_amount_ars: netAmount,
     gross_amount_ars: grossAmount,
     consistency,
+    parser_fields: [],
   };
 }
 
-export async function analyzePayslipWithDeepSeek(pdfText: string, filename: string): Promise<{
+export async function analyzePayslipWithDeepSeek(
+  pdfText: string,
+  filename: string,
+  previousErrors?: string[],
+): Promise<{
   payslip: AIParsedPayslip;
+  parserFields: ParserField[];
   artifacts: {
     source_text_excerpt: string;
     request_payload: string;
@@ -352,16 +408,27 @@ export async function analyzePayslipWithDeepSeek(pdfText: string, filename: stri
   const { apiKey, baseUrl, model } = getDeepSeekConfig();
   const sourceTextExcerpt = pdfText.slice(0, 40000);
 
+  const errorContext = previousErrors?.length
+    ? `\n\nLos intentos anteriores fallaron con estos errores:\n${previousErrors.map((e, i) => `${i + 1}. ${e}`).join("\n")}\nCorregí el análisis según estos errores.`
+    : "";
+
   const prompt = [
     "Sos un analista experto en recibos de sueldo argentinos.",
     "Debés leer el texto OCR de un PDF y devolver exclusivamente JSON válido.",
-    "Extraé employer_name, employee_name, period_label, pay_date, net_amount_ars, gross_amount_ars y consistency.",
+    "Extraé employer_name, employee_name, period_label, pay_date, net_amount_ars, gross_amount_ars, parser_fields y consistency.",
     "period_label debe conservar el período legible del recibo, por ejemplo 'Mayo 2026'.",
     "pay_date debe ir en formato YYYY-MM-DD.",
     "net_amount_ars debe ser el Neto a Cobrar.",
     "gross_amount_ars debe ser el total bruto antes de descuentos si puede identificarse; si no, dejalo vacío.",
     "En consistency devolvé passed:boolean, confidence:0..1 y notes:string[].",
+    "Además, devolvé un array \"parser_fields\" que describa cómo se encuentran los campos en el PDF.",
+    "Cada elemento de parser_fields debe tener:",
+    "  - \"fieldName\": nombre del campo (employer_name, employee_name, period_label, pay_date, net_amount_ars, gross_amount_ars).",
+    "  - \"labels\": array con el texto exacto de TODAS las etiquetas y sinónimos encontrados en el PDF para este campo (ej: para net_amount_ars podría ser [\"Neto a Cobrar\", \"Neto\", \"Total Neto\", \"Neto a Pagar\"]).",
+    "  - \"valuePosition\": siempre \"right\" (el valor está a la derecha de la etiqueta en la misma línea, típico de tablas).",
+    "Incluí TODOS los campos que pudiste identificar en el PDF.",
     `Archivo: ${filename}`,
+    errorContext,
     "Texto del PDF:",
     sourceTextExcerpt,
   ].join("\n\n");
@@ -410,9 +477,12 @@ export async function analyzePayslipWithDeepSeek(pdfText: string, filename: stri
   }
 
   const payslip = normalizePayslip(parsedContent);
+  const parserFields = normalizeParserFields((parsedContent as Record<string, unknown>).parser_fields);
+  payslip.parser_fields = parserFields;
 
   return {
     payslip,
+    parserFields,
     artifacts: {
       source_text_excerpt: sourceTextExcerpt,
       request_payload: requestPayload,

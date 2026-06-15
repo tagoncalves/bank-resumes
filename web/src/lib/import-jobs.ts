@@ -1,8 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { analyzeStatementWithDeepSeek } from "@/lib/ai/deepseek";
+import { analyzeWithRetry } from "@/lib/ai/retry";
 import { extractPdfText } from "@/lib/pdf-parser";
 import { readImportJobPdf, readStatementPdf, saveImportJobPdf, saveStatementPdf } from "@/lib/statement-pdf";
 import { persistParsedStatement } from "@/lib/statement-import";
+import { createAiParserFromAnalysis } from "@/lib/ai/parser-generator";
 
 type StartAIImportJobInput = {
   userId?: string | null;
@@ -155,7 +157,7 @@ export async function processNextQueuedImportJob() {
 async function processNewStatementJob(jobId: string, input: StartAIImportJobInput) {
   const analysis = await runAIAnalysis(jobId, input.rawFilename, input.pdfBuffer);
   const aiParsed = analysis.statement;
-  const processingStatus = aiParsed.consistency.passed ? "COMPLETED" : "REVIEW_REQUIRED";
+  const processingStatus = "REVIEW_REQUIRED";
 
   const statement = await persistParsedStatement(aiParsed, {
     userId: input.userId ?? null,
@@ -172,6 +174,17 @@ async function processNewStatementJob(jobId: string, input: StartAIImportJobInpu
   });
 
   saveStatementPdf(statement.id, input.pdfBuffer);
+
+  // Generate AI parser
+  const pdfText = await extractPdfText(input.pdfBuffer);
+  await createAiParserFromAnalysis({
+    sourceType: "STATEMENT",
+    statementId: statement.id,
+    pdfText,
+    rawFilename: input.rawFilename,
+    bankName: aiParsed.header.bank_name,
+    parserFields: analysis.parserFields,
+  });
 
   await prisma.importJob.update({
     where: { id: jobId },
@@ -196,7 +209,17 @@ async function processNewStatementJob(jobId: string, input: StartAIImportJobInpu
 async function processExistingStatementJob(jobId: string, input: ExistingStatementReprocessInput) {
   const analysis = await runAIAnalysis(jobId, input.rawFilename, input.pdfBuffer);
   const aiParsed = analysis.statement;
-  const processingStatus = aiParsed.consistency.passed ? "COMPLETED" : "REVIEW_REQUIRED";
+  const processingStatus = "REVIEW_REQUIRED";
+
+  const pdfText = await extractPdfText(input.pdfBuffer);
+  await createAiParserFromAnalysis({
+    sourceType: "STATEMENT",
+    statementId: input.statementId,
+    pdfText,
+    rawFilename: input.rawFilename,
+    bankName: aiParsed.header.bank_name,
+    parserFields: analysis.parserFields,
+  });
 
   await prisma.statement.update({
     where: { id: input.statementId },
@@ -245,5 +268,9 @@ async function runAIAnalysis(jobId: string, filename: string, pdfBuffer: Buffer)
     },
   });
 
-  return analyzeStatementWithDeepSeek(pdfText, filename);
+  const { result } = await analyzeWithRetry(
+    (previousErrors) => analyzeStatementWithDeepSeek(pdfText, filename, previousErrors),
+  );
+
+  return result;
 }

@@ -57,6 +57,11 @@ export interface ParsedStatementConsistency {
 
 export interface AIParsedStatement extends ParsedStatement {
   consistency: ParsedStatementConsistency;
+  parser_fields: Array<{
+    fieldName: string;
+    labels: string[];
+    valuePosition: "right";
+  }>;
 }
 
 export interface AIAnalysisArtifacts {
