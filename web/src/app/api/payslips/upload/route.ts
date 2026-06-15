@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
           payDate: string;
           netAmountArs: number;
           grossAmountArs?: number;
-          processingStatus: "COMPLETED" | "REVIEW_REQUIRED";
+          processingStatus: "COMPLETED" | "PRELIMINARY";
           analysisProvider: string | null;
           analysisModel: string | null;
           analysisPromptVersion: string | null;
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
           payDate: analysis.payslip.pay_date,
           netAmountArs: analysis.payslip.net_amount_ars,
           grossAmountArs: analysis.payslip.gross_amount_ars,
-          processingStatus: analysis.payslip.consistency.passed ? "COMPLETED" : "REVIEW_REQUIRED",
+          processingStatus: "PRELIMINARY",
           analysisProvider: "AI",
           analysisModel: analysis.artifacts.model,
           analysisPromptVersion: analysis.artifacts.prompt_version,
@@ -177,30 +177,32 @@ export async function POST(req: NextRequest) {
     }
 
     const created = await prisma.$transaction(async (tx) => {
-      const salaryCategory = await tx.category.upsert({
-        where: { name: "Sueldo" },
-        update: {},
-        create: {
-          name: "Sueldo",
-          icon: "💼",
-          color: "#10B981",
-        },
-      });
+      let incomeTransactionId: string | undefined;
 
-      const incomeTransaction = await tx.transaction.create({
-        data: {
-          userId: session?.userId ?? null,
-          date: new Date(mappedPayslip.payDate),
-          merchantName: mappedPayslip.employerName,
-          normalizedMerchant: mappedPayslip.employerName.replace(/\s+/g, " ").trim(),
-          amountArs: money(mappedPayslip.netAmountArs),
-          amountUsd: null,
-          categoryId: salaryCategory.id,
-          transactionType: "CREDIT",
-          source: "IMPORTED",
-          isInstallment: false,
-        },
-      });
+      // Only create income transaction for COMPLETED status (native parse)
+      if (mappedPayslip.processingStatus === "COMPLETED") {
+        const salaryCategory = await tx.category.upsert({
+          where: { name: "Sueldo" },
+          update: {},
+          create: { name: "Sueldo", icon: "💼", color: "#10B981" },
+        });
+
+        const incomeTransaction = await tx.transaction.create({
+          data: {
+            userId: session?.userId ?? null,
+            date: new Date(mappedPayslip.payDate),
+            merchantName: mappedPayslip.employerName,
+            normalizedMerchant: mappedPayslip.employerName.replace(/\s+/g, " ").trim(),
+            amountArs: money(mappedPayslip.netAmountArs),
+            amountUsd: null,
+            categoryId: salaryCategory.id,
+            transactionType: "CREDIT",
+            source: "IMPORTED",
+            isInstallment: false,
+          },
+        });
+        incomeTransactionId = incomeTransaction.id;
+      }
 
       const payslip = await tx.payslip.create({
         data: {
@@ -221,40 +223,38 @@ export async function POST(req: NextRequest) {
           analysisNotes: mappedPayslip.analysisNotes,
           analysisStructuredJson: mappedPayslip.analysisStructuredJson,
           ...(session?.userId
-            ? {
-                user: {
-                  connect: { id: session.userId },
-                },
-              }
+            ? { user: { connect: { id: session.userId } } }
             : {}),
-          incomeTransaction: {
-            connect: { id: incomeTransaction.id },
-          },
+          ...(incomeTransactionId
+            ? { incomeTransaction: { connect: { id: incomeTransactionId } } }
+            : {}),
         },
       });
 
-      return { payslip, incomeTransaction };
+      return { payslip, incomeTransactionId };
     });
 
     savePayslipPdf(created.payslip.id, buffer);
 
-    return NextResponse.json(
-      {
-        payslipId: created.payslip.id,
-        transactionId: created.incomeTransaction.id,
-        rawFilename: created.payslip.rawFilename,
-        uploadedAt: created.payslip.uploadedAt,
-        employerName: created.payslip.employerName,
-        bankName: created.payslip.bankName,
-        employeeName: created.payslip.employeeName,
-        periodLabel: created.payslip.periodLabel,
-        amountArs: toMoneyNumber(created.payslip.netAmount),
-        processingStatus: created.payslip.processingStatus,
-        analysisConfidence: created.payslip.analysisConfidence,
-        importMethod: created.payslip.analysisProvider ? "AI" : "MANUAL",
-      },
-      { status: 201 }
-    );
+    const responseData: Record<string, unknown> = {
+      payslipId: created.payslip.id,
+      rawFilename: created.payslip.rawFilename,
+      uploadedAt: created.payslip.uploadedAt,
+      employerName: created.payslip.employerName,
+      bankName: created.payslip.bankName,
+      employeeName: created.payslip.employeeName,
+      periodLabel: created.payslip.periodLabel,
+      amountArs: toMoneyNumber(created.payslip.netAmount),
+      processingStatus: created.payslip.processingStatus,
+      analysisConfidence: created.payslip.analysisConfidence,
+      importMethod: created.payslip.analysisProvider ? "AI" : "MANUAL",
+    };
+
+    if (created.incomeTransactionId) {
+      responseData.transactionId = created.incomeTransactionId;
+    }
+
+    return NextResponse.json(responseData, { status: 201 });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Error inesperado al cargar el recibo" },

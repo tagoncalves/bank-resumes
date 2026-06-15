@@ -6,7 +6,7 @@ import { analyzeWithRetry } from "@/lib/ai/retry";
 import { extractPdfText } from "@/lib/pdf-parser";
 import { parsePayslipBuffer } from "@/lib/payslip-parser";
 import { money } from "@/lib/money";
-import { createAiParserFromAnalysis } from "@/lib/ai/parser-generator";
+import { createAiParserFromAnalysis, deleteAiParsersForSource } from "@/lib/ai/parser-generator";
 import { savePayslipPdf } from "@/lib/statement-pdf";
 import fs from "fs";
 import path from "path";
@@ -29,6 +29,33 @@ function readPayslipPdf(id: string): Buffer {
   throw new Error("PDF no encontrado para este recibo");
 }
 
+async function createIncomeTransaction(
+  employerName: string,
+  payDate: string,
+  netAmountArs: number,
+  userId: string | null,
+) {
+  const salaryCategory = await prisma.category.upsert({
+    where: { name: "Sueldo" },
+    update: {},
+    create: { name: "Sueldo", icon: "💼", color: "#10B981" },
+  });
+
+  return prisma.transaction.create({
+    data: {
+      userId: userId ?? null,
+      date: new Date(payDate),
+      merchantName: employerName,
+      normalizedMerchant: employerName.replace(/\s+/g, " ").trim(),
+      amountArs: money(netAmountArs),
+      categoryId: salaryCategory.id,
+      transactionType: "CREDIT",
+      source: "IMPORTED",
+      isInstallment: false,
+    },
+  });
+}
+
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await guardAdmin();
   if (session instanceof NextResponse) return session;
@@ -39,32 +66,96 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const payslip = await prisma.payslip.findUnique({ where: { id } });
   if (!payslip) return NextResponse.json({ error: "Recibo no encontrado" }, { status: 404 });
 
+  if (action === "confirm") {
+    if (payslip.processingStatus !== "PRELIMINARY") {
+      return NextResponse.json({ error: "Solo se pueden confirmar recibos en estado preliminar" }, { status: 400 });
+    }
+
+    // Parse stored analysis JSON to create the income transaction
+    if (!payslip.analysisStructuredJson) {
+      return NextResponse.json({ error: "No hay análisis almacenado para confirmar" }, { status: 400 });
+    }
+
+    let analysisData: { payslip: { employer_name: string; pay_date: string; net_amount_ars: number } };
+    try {
+      analysisData = JSON.parse(payslip.analysisStructuredJson);
+    } catch {
+      return NextResponse.json({ error: "El análisis almacenado no es JSON válido" }, { status: 400 });
+    }
+
+    const tx = await createIncomeTransaction(
+      analysisData.payslip.employer_name,
+      analysisData.payslip.pay_date,
+      analysisData.payslip.net_amount_ars,
+      payslip.userId,
+    );
+
+    await prisma.payslip.update({
+      where: { id },
+      data: {
+        processingStatus: "COMPLETED",
+        incomeTransactionId: tx.id,
+      },
+    });
+
+    return NextResponse.json({ success: true, processingStatus: "COMPLETED" });
+  }
+
+  if (action === "reject") {
+    if (payslip.processingStatus !== "PRELIMINARY") {
+      return NextResponse.json({ error: "Solo se pueden rechazar recibos en estado preliminar" }, { status: 400 });
+    }
+
+    // Clear all analysis data and set back to QUEUED for re-analysis
+    await prisma.payslip.update({
+      where: { id },
+      data: {
+        processingStatus: "QUEUED",
+        analysisProvider: "AI",
+        analysisModel: null,
+        analysisPromptVersion: null,
+        analysisConfidence: null,
+        analysisNotes: null,
+        analysisStructuredJson: null,
+        employerName: null,
+        employeeName: null,
+        periodLabel: null,
+        payDate: null,
+        netAmount: null,
+        grossAmount: null,
+      },
+    });
+
+    // Clean up old AI parsers so they can be regenerated
+    await deleteAiParsersForSource("PAYSLIP", id);
+
+    return NextResponse.json({ success: true, processingStatus: "QUEUED" });
+  }
+
   if (action === "retry") {
-    // Clear previous data
-    await prisma.$transaction([
-      prisma.payslip.update({
-        where: { id },
-        data: {
-          processingStatus: "ANALYZING",
-          analysisProvider: "AI",
-          analysisModel: null,
-          analysisPromptVersion: null,
-          analysisConfidence: null,
-          analysisNotes: null,
-          analysisStructuredJson: null,
-          employerName: null,
-          employeeName: null,
-          periodLabel: null,
-          payDate: null,
-          netAmount: null,
-          grossAmount: null,
-          incomeTransactionId: null,
-        },
-      }),
-      ...(payslip.incomeTransactionId
-        ? [prisma.transaction.delete({ where: { id: payslip.incomeTransactionId } })]
-        : []),
-    ]);
+    // Clear previous data (no transaction to delete in PRELIMINARY state)
+    await prisma.payslip.update({
+      where: { id },
+      data: {
+        processingStatus: "ANALYZING",
+        analysisProvider: "AI",
+        analysisModel: null,
+        analysisPromptVersion: null,
+        analysisConfidence: null,
+        analysisNotes: null,
+        analysisStructuredJson: null,
+        employerName: null,
+        employeeName: null,
+        periodLabel: null,
+        payDate: null,
+        netAmount: null,
+        grossAmount: null,
+        incomeTransactionId: null,
+      },
+    });
+
+    // Clean up old AI parsers
+    await deleteAiParsersForSource("PAYSLIP", id);
 
     // Process inline
     try {
@@ -74,23 +165,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       // Try native parser
       try {
         const parsed = await parsePayslipBuffer(buffer);
-        const salaryCategory = await prisma.category.upsert({
-          where: { name: "Sueldo" },
-          update: {},
-          create: { name: "Sueldo", icon: "💼", color: "#10B981" },
-        });
-        const tx = await prisma.transaction.create({
-          data: {
-            date: new Date(parsed.payDate),
-            merchantName: parsed.employerName,
-            normalizedMerchant: parsed.employerName.replace(/\s+/g, " ").trim(),
-            amountArs: money(parsed.netAmountArs),
-            categoryId: salaryCategory.id,
-            transactionType: "CREDIT",
-            source: "IMPORTED",
-            isInstallment: false,
-          },
-        });
+        const tx = await createIncomeTransaction(
+          parsed.employerName,
+          parsed.payDate,
+          parsed.netAmountArs,
+          payslip.userId,
+        );
 
         await prisma.payslip.update({
           where: { id },
@@ -130,26 +210,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       const { result: analysis } = await analyzeWithRetry(
         (prev) => analyzePayslipWithDeepSeek(pdfText, payslip.rawFilename, [...(previousErrors ?? []), ...prev]),
       );
-      const salaryCategory = await prisma.category.upsert({
-        where: { name: "Sueldo" },
-        update: {},
-        create: { name: "Sueldo", icon: "💼", color: "#10B981" },
-      });
-
-      const tx = await prisma.transaction.create({
-        data: {
-          date: new Date(analysis.payslip.pay_date),
-          merchantName: analysis.payslip.employer_name,
-          normalizedMerchant: analysis.payslip.employer_name.replace(/\s+/g, " ").trim(),
-          amountArs: money(analysis.payslip.net_amount_ars),
-          categoryId: salaryCategory.id,
-          transactionType: "CREDIT",
-          source: "IMPORTED",
-          isInstallment: false,
-        },
-      });
-
-      const processingStatus = "REVIEW_REQUIRED";
+      const processingStatus = "PRELIMINARY";
 
       await prisma.payslip.update({
         where: { id },
@@ -167,7 +228,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           analysisConfidence: analysis.payslip.consistency.confidence,
           analysisNotes: analysis.payslip.consistency.notes.join("\n") || null,
           analysisStructuredJson: analysis.artifacts.parsed_result_json,
-          incomeTransactionId: tx.id,
+          incomeTransactionId: null,
         },
       });
 
@@ -194,6 +255,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   if (action === "delete") {
+    // Clean up old AI parsers first
+    await deleteAiParsersForSource("PAYSLIP", id);
+
     await prisma.$transaction([
       ...(payslip.incomeTransactionId
         ? [prisma.transaction.delete({ where: { id: payslip.incomeTransactionId } })]
@@ -211,5 +275,5 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ success: true });
   }
 
-  return NextResponse.json({ error: "Acción inválida. Usá 'retry' o 'delete'." }, { status: 400 });
+  return NextResponse.json({ error: "Acción inválida. Usá 'confirm', 'reject', 'retry' o 'delete'." }, { status: 400 });
 }

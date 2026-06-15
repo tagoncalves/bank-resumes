@@ -66,7 +66,8 @@ export default function StatementUploadPanel({ onComplete }: { onComplete?: () =
           }
 
           const bankName = typeof json.bankName === "string" ? json.bankName : "Banco detectado";
-          const aiMessage = json.status === "REVIEW_REQUIRED"
+          const processingStatus = typeof json.status === "string" ? json.status : "";
+          const aiMessage = ["REVIEW_REQUIRED", "PRELIMINARY"].includes(processingStatus)
             ? `${bankName} · AI · revisión sugerida`
             : `${bankName} · AI · consistencia validada`;
 
@@ -142,7 +143,7 @@ export default function StatementUploadPanel({ onComplete }: { onComplete?: () =
                     ...f,
                     status: "done",
                     message: json.importMethod === "AI"
-                      ? `${bankName} · ${transactionCount} movimientos · AI ${json.processingStatus === "REVIEW_REQUIRED" ? "· revisión sugerida" : "· consistencia validada"}`
+                      ? `${bankName} · ${transactionCount} movimientos · AI ${["REVIEW_REQUIRED", "PRELIMINARY"].includes(String(json.processingStatus ?? "")) ? "· revisión sugerida" : "· consistencia validada"}`
                       : `${bankName} · ${transactionCount} movimientos`,
                     statementId: typeof json.statementId === "string" ? json.statementId : undefined,
                   }

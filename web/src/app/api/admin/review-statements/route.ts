@@ -10,7 +10,7 @@ export async function GET() {
   const statements = await prisma.statement.findMany({
     where: {
       importMethod: "AI",
-      processingStatus: { in: ["REVIEW_REQUIRED", "REJECTED", "COMPLETED"] },
+      processingStatus: { in: ["PRELIMINARY", "REVIEW_REQUIRED", "REJECTED", "COMPLETED"] },
     },
     orderBy: [
       { processingStatus: "asc" },

@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { deleteAiParsersForSource } from "@/lib/ai/parser-generator";
 
 const UPLOADS_DIR = path.join(process.cwd(), "uploads", "statements");
 
@@ -43,6 +44,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (!statement) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
   if (statement.userId !== session.userId) return NextResponse.json({ error: "Sin acceso" }, { status: 403 });
 
+  await deleteAiParsersForSource("STATEMENT", id);
   await prisma.statement.delete({ where: { id } });
   try { fs.unlinkSync(path.join(UPLOADS_DIR, `${id}.pdf`)); } catch { /* non-fatal */ }
   return NextResponse.json({ ok: true });

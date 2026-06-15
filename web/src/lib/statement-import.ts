@@ -8,7 +8,7 @@ type PersistOptions = {
   sourceHash: string;
   rawFilename: string;
   importMethod: "NATIVE" | "AI";
-  processingStatus?: "COMPLETED" | "REVIEW_REQUIRED";
+  processingStatus?: "COMPLETED" | "REVIEW_REQUIRED" | "PRELIMINARY";
   analysisProvider?: string | null;
   analysisModel?: string | null;
   analysisPromptVersion?: string | null;
@@ -117,4 +117,89 @@ export async function persistParsedStatement(
 
     return statement;
   });
+}
+
+export async function createTransactionsFromStoredAnalysis(
+  statementId: string,
+  userId: string | null,
+) {
+  const statement = await prisma.statement.findUnique({
+    where: { id: statementId },
+    select: { analysisStructuredJson: true },
+  });
+
+  if (!statement?.analysisStructuredJson) {
+    throw new Error("No hay análisis almacenado para crear transacciones");
+  }
+
+  const parsed = JSON.parse(statement.analysisStructuredJson) as AIParsedStatement;
+  const { transactions, header } = parsed;
+
+  const categories = await prisma.category.findMany();
+  const categoryMap = new Map(categories.map((c) => [c.name, c.id]));
+
+  return prisma.$transaction(async (tx) => {
+    for (const transaction of transactions) {
+      const categoryName = categorizeTransaction(transaction.merchant_name);
+      const categoryId = categoryMap.get(categoryName) ?? categoryMap.get("Otros");
+      const isInstallment = !!(transaction.installment_current && transaction.installment_total);
+
+      await tx.transaction.create({
+        data: {
+          statementId,
+          userId: userId ?? null,
+          categoryId: categoryId ?? null,
+          date: new Date(transaction.date),
+          merchantName: transaction.merchant_name,
+          normalizedMerchant: transaction.merchant_name.trim().replace(/\s+/g, " "),
+          voucherNumber: transaction.voucher_number,
+          installmentCurrent: transaction.installment_current,
+          installmentTotal: transaction.installment_total,
+          amountArs: money(transaction.amount_ars),
+          amountUsd: nullableMoney(transaction.amount_usd),
+          cardLastFour: transaction.card_last_four,
+          isInstallment,
+        },
+      });
+    }
+  });
+}
+
+export async function deleteStatementAndRequeue(statementId: string) {
+  const importJob = await prisma.importJob.findFirst({
+    where: {
+      statementId,
+      importMethod: "AI",
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  // Delete statement (cascade: balanceSummary, transactions)
+  await prisma.statement.delete({ where: { id: statementId } });
+
+  // Re-queue the import job for re-analysis
+  if (importJob) {
+    await prisma.importJob.update({
+      where: { id: importJob.id },
+      data: {
+        status: "QUEUED",
+        statementId: null,
+        bankName: null,
+        analysisProvider: null,
+        analysisModel: null,
+        analysisPromptVersion: null,
+        analysisConfidence: null,
+        analysisNotes: null,
+        sourceTextExcerpt: null,
+        aiRequestPayload: null,
+        aiRawResponse: null,
+        aiParsedResult: null,
+        errorMessage: null,
+        attemptCount: 0,
+        lastProcessedAt: null,
+      },
+    });
+  }
+
+  return importJob;
 }

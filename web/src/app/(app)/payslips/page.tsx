@@ -103,6 +103,11 @@ export default async function PayslipsPage({
                         AI · analizando
                       </span>
                     )}
+                    {payslip.processingStatus === "PRELIMINARY" && (
+                      <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-medium text-purple-700">
+                        AI · preliminar
+                      </span>
+                    )}
                     {payslip.processingStatus === "REVIEW_REQUIRED" && (
                       <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
                         AI · revisar

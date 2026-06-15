@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatARS, formatDate } from "@/lib/formatters";
 import { toMoneyNumber } from "@/lib/money";
 import { ArrowLeft, Download, FileText } from "lucide-react";
+import { DeletePayslipButton } from "@/components/ui/delete-payslip-button";
 
 export default async function PayslipDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -51,6 +52,7 @@ export default async function PayslipDetailPage({ params }: { params: Promise<{ 
           >
             <Download className="h-4 w-4" /> Descargar PDF
           </a>
+          <DeletePayslipButton id={id} />
         </div>
       </div>
 
@@ -81,7 +83,7 @@ export default async function PayslipDetailPage({ params }: { params: Promise<{ 
             </div>
           </div>
           {payslip.analysisNotes && (
-            <div className={`mt-4 rounded-md px-4 py-3 text-xs ${payslip.processingStatus === "REVIEW_REQUIRED" ? "bg-amber-50 text-amber-800" : "bg-violet-50 text-violet-800"}`}>
+            <div className={`mt-4 rounded-md px-4 py-3 text-xs ${["REVIEW_REQUIRED", "PRELIMINARY"].includes(payslip.processingStatus) ? "bg-amber-50 text-amber-800" : "bg-violet-50 text-violet-800"}`}>
               <p className="font-medium">
                 Análisis AI
                 {typeof payslip.analysisConfidence === "number" ? ` · confianza ${(payslip.analysisConfidence * 100).toFixed(0)}%` : ""}
@@ -129,6 +131,7 @@ function describePayslipStatus(provider: string | null, status: string) {
   if (!provider) return "Importado con mapeo automático";
   if (status === "QUEUED") return "Pendiente de análisis AI";
   if (status === "ANALYZING") return "Analizando con AI";
+  if (status === "PRELIMINARY") return "Importado con AI · pendiente de confirmación";
   if (status === "REVIEW_REQUIRED") return "Importado con AI · revisar";
   if (status === "FAILED") return "Análisis AI con error";
   return "Importado con AI";

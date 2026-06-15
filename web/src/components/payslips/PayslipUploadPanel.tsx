@@ -70,6 +70,7 @@ export default function PayslipUploadPanel({ onComplete }: { onComplete?: () => 
         const json = await readJsonSafely(res);
         const amountArs = typeof json.amountArs === "number" ? json.amountArs : Number(json.amountArs ?? 0);
         const employerName = typeof json.employerName === "string" ? json.employerName : "Recibo";
+        const processingStatus = typeof json.processingStatus === "string" ? json.processingStatus : "";
 
         if (res.status === 201) {
           showToast({
@@ -83,7 +84,7 @@ export default function PayslipUploadPanel({ onComplete }: { onComplete?: () => 
                 ? {
                     ...file,
                     status: "done",
-                    message: `${employerName} · ${new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" }).format(amountArs)} · ${json.importMethod === "AI" ? `AI${json.processingStatus === "REVIEW_REQUIRED" ? " · revisar" : ""}` : "mapeo automático"}`,
+                    message: `${employerName} · ${new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" }).format(amountArs)} · ${json.importMethod === "AI" ? `AI${["REVIEW_REQUIRED", "PRELIMINARY"].includes(processingStatus) ? " · revisar" : ""}` : "mapeo automático"}`,
                     payslipId: typeof json.payslipId === "string" ? json.payslipId : undefined,
                   }
                 : file

@@ -258,6 +258,24 @@ export async function createAiParserFromAnalysis(input: ParserGenerationInput): 
   return aiParser.id;
 }
 
+export async function deleteAiParsersForSource(sourceType: "PAYSLIP" | "STATEMENT", sourceId: string): Promise<void> {
+  const field = sourceType === "PAYSLIP" ? "payslipId" : "statementId";
+  const parsers = await prisma.aiParser.findMany({
+    where: { [field]: sourceId },
+    select: { id: true, filePath: true },
+  });
+
+  for (const parser of parsers) {
+    if (parser.filePath && fs.existsSync(parser.filePath)) {
+      try { fs.unlinkSync(parser.filePath); } catch { /* ignore */ }
+    }
+  }
+
+  await prisma.aiParser.deleteMany({
+    where: { [field]: sourceId },
+  });
+}
+
 export async function findMatchingAiParsers(pdfText: string, sourceType: "PAYSLIP" | "STATEMENT"): Promise<Array<{ id: string; parserCode: string; bankName: string | null; employerName: string | null }>> {
   const signature = extractFormatSignature(pdfText);
   const parsers = await prisma.aiParser.findMany({

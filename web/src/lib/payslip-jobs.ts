@@ -50,63 +50,26 @@ export async function processNextQueuedPayslip() {
     const { result: analysis, attempts, errors } = await analyzeWithRetry(
       (previousErrors) => analyzePayslipWithDeepSeek(pdfText, nextPayslip.rawFilename, previousErrors),
     );
-    const processingStatus = "REVIEW_REQUIRED";
+    const processingStatus = "PRELIMINARY";
 
-    await prisma.$transaction(async (tx) => {
-      const salaryCategory = await tx.category.upsert({
-        where: { name: "Sueldo" },
-        update: {},
-        create: {
-          name: "Sueldo",
-          icon: "💼",
-          color: "#10B981",
-        },
-      });
-
-      const incomeTransaction = await tx.transaction.create({
-        data: {
-          userId: nextPayslip.userId ?? null,
-          date: new Date(analysis.payslip.pay_date),
-          merchantName: analysis.payslip.employer_name,
-          normalizedMerchant: analysis.payslip.employer_name.replace(/\s+/g, " ").trim(),
-          amountArs: money(analysis.payslip.net_amount_ars),
-          amountUsd: null,
-          categoryId: salaryCategory.id,
-          transactionType: "CREDIT",
-          source: "IMPORTED",
-          isInstallment: false,
-        },
-      });
-
-      await tx.payslip.update({
-        where: { id: nextPayslip.id },
-        data: {
-          employerName: analysis.payslip.employer_name,
-          bankName: null,
-          employeeName: analysis.payslip.employee_name,
-          periodLabel: analysis.payslip.period_label,
-          payDate: new Date(analysis.payslip.pay_date),
-          netAmount: money(analysis.payslip.net_amount_ars),
-          grossAmount: analysis.payslip.gross_amount_ars == null ? null : money(analysis.payslip.gross_amount_ars),
-          processingStatus,
-          analysisProvider: "AI",
-          analysisModel: analysis.artifacts.model,
-          analysisPromptVersion: analysis.artifacts.prompt_version,
-          analysisConfidence: analysis.payslip.consistency.confidence,
-          analysisNotes: [...analysis.payslip.consistency.notes, ...(attempts > 1 ? [`Reintentos: ${attempts}/${5}`] : [])].join("\n") || null,
-          analysisStructuredJson: analysis.artifacts.parsed_result_json,
-          incomeTransaction: {
-            connect: { id: incomeTransaction.id },
-          },
-          ...(nextPayslip.userId
-            ? {
-                user: {
-                  connect: { id: nextPayslip.userId },
-                },
-              }
-            : {}),
-        },
-      });
+    await prisma.payslip.update({
+      where: { id: nextPayslip.id },
+      data: {
+        employerName: analysis.payslip.employer_name,
+        bankName: null,
+        employeeName: analysis.payslip.employee_name,
+        periodLabel: analysis.payslip.period_label,
+        payDate: new Date(analysis.payslip.pay_date),
+        netAmount: money(analysis.payslip.net_amount_ars),
+        grossAmount: analysis.payslip.gross_amount_ars == null ? null : money(analysis.payslip.gross_amount_ars),
+        processingStatus,
+        analysisProvider: "AI",
+        analysisModel: analysis.artifacts.model,
+        analysisPromptVersion: analysis.artifacts.prompt_version,
+        analysisConfidence: analysis.payslip.consistency.confidence,
+        analysisNotes: [...analysis.payslip.consistency.notes, ...(attempts > 1 ? [`Reintentos: ${attempts}/${5}`] : [])].join("\n") || null,
+        analysisStructuredJson: analysis.artifacts.parsed_result_json,
+      },
     });
 
     await createAiParserFromAnalysis({

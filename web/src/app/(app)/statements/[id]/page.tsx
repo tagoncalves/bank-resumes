@@ -67,7 +67,7 @@ export default async function StatementDetailPage({ params }: { params: Promise<
               <div className="mt-2 flex gap-4 text-xs text-zinc-500">
                 <span>Período: {formatDate(data.periodStart)} – {formatDate(data.periodEnd)}</span>
                 <span>Vencimiento: {formatDate(data.dueDate)}</span>
-                <span>{data.importMethod === "AI" ? `Importado con AI${data.processingStatus === "REVIEW_REQUIRED" ? " · revisar" : ""}` : "Importado con parser nativo"}</span>
+                <span>{data.importMethod === "AI" ? `Importado con AI${["REVIEW_REQUIRED", "PRELIMINARY"].includes(data.processingStatus) ? " · revisar" : ""}` : "Importado con parser nativo"}</span>
               </div>
             </div>
             <div className="text-right">
@@ -83,7 +83,7 @@ export default async function StatementDetailPage({ params }: { params: Promise<
             </div>
           </div>
           {data.analysisNotes && (
-            <div className={`mt-4 rounded-md px-4 py-3 text-xs ${data.processingStatus === "REVIEW_REQUIRED" ? "bg-amber-50 text-amber-800" : "bg-violet-50 text-violet-800"}`}>
+            <div className={`mt-4 rounded-md px-4 py-3 text-xs ${["REVIEW_REQUIRED", "PRELIMINARY"].includes(data.processingStatus) ? "bg-amber-50 text-amber-800" : "bg-violet-50 text-violet-800"}`}>
               <p className="font-medium">
                 {data.analysisProvider ? "Análisis AI" : "Análisis de importación"}
                 {typeof data.analysisConfidence === "number" ? ` · confianza ${(data.analysisConfidence * 100).toFixed(0)}%` : ""}

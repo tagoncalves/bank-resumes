@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
   }
 
   const importMethod: "NATIVE" | "AI" = "NATIVE";
-  const processingStatus: "COMPLETED" | "REVIEW_REQUIRED" = "COMPLETED";
+  const processingStatus: "COMPLETED" | "PRELIMINARY" = "COMPLETED";
   const analysisProvider: string | null = null;
   const analysisConfidence: number | null = null;
   const analysisNotes: string[] = [];

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin";
 import { reprocessStatementWithAI } from "@/lib/import-jobs";
+import { createTransactionsFromStoredAnalysis, deleteStatementAndRequeue } from "@/lib/statement-import";
 
 export async function PATCH(
   req: NextRequest,
@@ -22,7 +23,7 @@ export async function PATCH(
 
   const existing = await prisma.statement.findUnique({
     where: { id },
-    select: { id: true, importMethod: true },
+    select: { id: true, importMethod: true, processingStatus: true, userId: true },
   });
 
   if (!existing) {
@@ -42,10 +43,25 @@ export async function PATCH(
     });
   }
 
+  if (action === "reject") {
+    // Delete statement and re-queue the import job for re-analysis
+    await deleteStatementAndRequeue(id);
+
+    return NextResponse.json({
+      id,
+      ok: true,
+      processingStatus: "QUEUED",
+    });
+  }
+
+  // action === "approve"
+  // Create transactions from stored analysis
+  await createTransactionsFromStoredAnalysis(id, existing.userId);
+
   const updated = await prisma.statement.update({
     where: { id },
     data: {
-      processingStatus: action === "approve" ? "COMPLETED" : "REJECTED",
+      processingStatus: "COMPLETED",
       reviewedById: session.userId,
       reviewedAt: new Date(),
       reviewNotes: reviewNotes?.trim() || null,

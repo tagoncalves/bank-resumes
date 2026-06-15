@@ -59,7 +59,7 @@ model Payslip {
   payDate              DateTime?
   netAmount            Decimal?
   grossAmount          Decimal?
-  processingStatus     String   @default("COMPLETED") // "COMPLETED" | "REVIEW_REQUIRED"
+  processingStatus     String   @default("COMPLETED") // "COMPLETED" | "REVIEW_REQUIRED" | "QUEUED" | "ANALYZING" | "FAILED" | "PRELIMINARY"
   analysisProvider     String?
   analysisModel        String?
   analysisPromptVersion String?
@@ -116,7 +116,7 @@ model Statement {
   cardId          String
   bankName        String
   importMethod    String   @default("NATIVE") // "NATIVE" | "AI"
-  processingStatus String  @default("COMPLETED") // "COMPLETED" | "REVIEW_REQUIRED" | "REJECTED"
+  processingStatus String  @default("COMPLETED") // "COMPLETED" | "REVIEW_REQUIRED" | "REJECTED" | "PRELIMINARY" | "QUEUED"
   parserVersion   String?
   analysisProvider String?
   analysisModel   String?

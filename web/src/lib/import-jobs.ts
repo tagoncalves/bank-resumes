@@ -3,7 +3,7 @@ import { analyzeStatementWithDeepSeek } from "@/lib/ai/deepseek";
 import { analyzeWithRetry } from "@/lib/ai/retry";
 import { extractPdfText } from "@/lib/pdf-parser";
 import { readImportJobPdf, readStatementPdf, saveImportJobPdf, saveStatementPdf } from "@/lib/statement-pdf";
-import { persistParsedStatement } from "@/lib/statement-import";
+import { persistParsedStatement, createTransactionsFromStoredAnalysis } from "@/lib/statement-import";
 import { createAiParserFromAnalysis } from "@/lib/ai/parser-generator";
 
 type StartAIImportJobInput = {
@@ -157,7 +157,7 @@ export async function processNextQueuedImportJob() {
 async function processNewStatementJob(jobId: string, input: StartAIImportJobInput) {
   const analysis = await runAIAnalysis(jobId, input.rawFilename, input.pdfBuffer);
   const aiParsed = analysis.statement;
-  const processingStatus = "REVIEW_REQUIRED";
+  const processingStatus = "PRELIMINARY";
 
   const statement = await persistParsedStatement(aiParsed, {
     userId: input.userId ?? null,
@@ -209,7 +209,12 @@ async function processNewStatementJob(jobId: string, input: StartAIImportJobInpu
 async function processExistingStatementJob(jobId: string, input: ExistingStatementReprocessInput) {
   const analysis = await runAIAnalysis(jobId, input.rawFilename, input.pdfBuffer);
   const aiParsed = analysis.statement;
-  const processingStatus = "REVIEW_REQUIRED";
+  const processingStatus = "PRELIMINARY";
+
+  // Delete old transactions from previous analysis (they'll be re-created on confirm)
+  await prisma.transaction.deleteMany({
+    where: { statementId: input.statementId },
+  });
 
   const pdfText = await extractPdfText(input.pdfBuffer);
   await createAiParserFromAnalysis({

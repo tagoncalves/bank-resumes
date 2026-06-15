@@ -1,7 +1,8 @@
 import type { AIAnalysisArtifacts, AIParsedStatement, ParsedBalanceSummary, ParsedHeader, ParsedTransaction } from "@/lib/pdf-parser/types";
+import { extractTableStructure, formatTableForPrompt, validateExtractedValues } from "@/lib/ai/table-extractor";
 
-export const DEEPSEEK_PROMPT_VERSION = "2026-06-15-v2";
-export const PAYSLIP_AI_PROMPT_VERSION = "2026-06-15-v2";
+export const DEEPSEEK_PROMPT_VERSION = "2026-06-16-v3";
+export const PAYSLIP_AI_PROMPT_VERSION = "2026-06-16-v3";
 
 export type ParserField = {
   fieldName: string;
@@ -261,6 +262,9 @@ export async function analyzeStatementWithDeepSeek(
     ? `\n\nLos intentos anteriores fallaron con estos errores:\n${previousErrors.map((e, i) => `${i + 1}. ${e}`).join("\n")}\nCorregí el análisis según estos errores.`
     : "";
 
+  const table = extractTableStructure(pdfText);
+  const tableBlock = formatTableForPrompt(table);
+
   const prompt = [
     "Sos un analista experto en resumenes de tarjeta argentinos.",
     "Debés leer el texto OCR de un PDF y devolver exclusivamente JSON válido.",
@@ -276,6 +280,7 @@ export async function analyzeStatementWithDeepSeek(
     "  - \"labels\": array con el texto exacto de TODAS las etiquetas y sinónimos encontrados en el PDF para este campo (ej: para previous_balance podría ser [\"Saldo Anterior\", \"Saldo Previo\", \"Saldo Anterior\"]).",
     "  - \"valuePosition\": siempre \"right\" (el valor está a la derecha de la etiqueta en la misma línea, típico de tablas).",
     "Incluí TODOS los campos que pudiste identificar en el PDF.",
+    tableBlock,
     `Archivo: ${filename}`,
     errorContext,
     "Texto del PDF:",
@@ -333,6 +338,21 @@ export async function analyzeStatementWithDeepSeek(
   const consistency = normalizeConsistency(normalized.consistency, localNotes);
 
   const parserFields = normalizeParserFields(normalized.parser_fields);
+
+  // Post-analysis validation: check values exist in PDF text
+  const validationErrors = validateExtractedValues(
+    {
+      bank_name: header.bank_name,
+      holder_name: header.holder_name,
+      card_last_four: header.card_last_four,
+      card_network: header.card_network,
+    },
+    pdfText,
+  );
+
+  if (validationErrors.length > 0) {
+    throw new Error(`Validación de fidelidad falló:\n${validationErrors.join("\n")}`);
+  }
 
   const statement: AIParsedStatement = {
     header,
@@ -412,6 +432,9 @@ export async function analyzePayslipWithDeepSeek(
     ? `\n\nLos intentos anteriores fallaron con estos errores:\n${previousErrors.map((e, i) => `${i + 1}. ${e}`).join("\n")}\nCorregí el análisis según estos errores.`
     : "";
 
+  const table = extractTableStructure(pdfText);
+  const tableBlock = formatTableForPrompt(table);
+
   const prompt = [
     "Sos un analista experto en recibos de sueldo argentinos.",
     "Debés leer el texto OCR de un PDF y devolver exclusivamente JSON válido.",
@@ -427,6 +450,7 @@ export async function analyzePayslipWithDeepSeek(
     "  - \"labels\": array con el texto exacto de TODAS las etiquetas y sinónimos encontrados en el PDF para este campo (ej: para net_amount_ars podría ser [\"Neto a Cobrar\", \"Neto\", \"Total Neto\", \"Neto a Pagar\"]).",
     "  - \"valuePosition\": siempre \"right\" (el valor está a la derecha de la etiqueta en la misma línea, típico de tablas).",
     "Incluí TODOS los campos que pudiste identificar en el PDF.",
+    tableBlock,
     `Archivo: ${filename}`,
     errorContext,
     "Texto del PDF:",
@@ -479,6 +503,22 @@ export async function analyzePayslipWithDeepSeek(
   const payslip = normalizePayslip(parsedContent);
   const parserFields = normalizeParserFields((parsedContent as Record<string, unknown>).parser_fields);
   payslip.parser_fields = parserFields;
+
+  // Post-analysis validation: check values exist in PDF text
+  const validationErrors = validateExtractedValues(
+    {
+      employer_name: payslip.employer_name,
+      employee_name: payslip.employee_name,
+      period_label: payslip.period_label,
+      net_amount_ars: payslip.net_amount_ars,
+      gross_amount_ars: payslip.gross_amount_ars,
+    },
+    pdfText,
+  );
+
+  if (validationErrors.length > 0) {
+    throw new Error(`Validación de fidelidad falló:\n${validationErrors.join("\n")}`);
+  }
 
   return {
     payslip,
