@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, FileText, List, CreditCard, Users, LogOut, ShieldAlert, FileBadge2 } from "lucide-react";
+import { LayoutDashboard, FileText, List, CreditCard, Users, LogOut, ShieldAlert, FileBadge2, Bot, Ban } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: "/transactions", label: "Movimientos", icon: List },
   { href: "/statements", label: "Resúmenes", icon: FileText },
   { href: "/payslips", label: "Recibos", icon: FileBadge2 },
+  { href: "/ai", label: "AI Chat", icon: Bot },
 ];
 
 interface Me { username: string; role: string; displayName: string | null }
@@ -72,12 +73,12 @@ export default function Sidebar() {
               href="/admin/users"
               className={cn(
                 "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                pathname.startsWith("/admin")
+                pathname.startsWith("/admin/users")
                   ? "bg-indigo-50 text-indigo-700"
                   : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
               )}
             >
-              <Users className={cn("h-4 w-4", pathname.startsWith("/admin") ? "text-indigo-600" : "text-zinc-400")} />
+              <Users className={cn("h-4 w-4", pathname.startsWith("/admin/users") ? "text-indigo-600" : "text-zinc-400")} />
               Usuarios
             </Link>
             <Link
@@ -91,6 +92,18 @@ export default function Sidebar() {
             >
               <ShieldAlert className={cn("h-4 w-4", pathname.startsWith("/admin/review-statements") ? "text-indigo-600" : "text-zinc-400")} />
               Revisión AI
+            </Link>
+            <Link
+              href="/admin/ai-bans"
+              className={cn(
+                "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                pathname.startsWith("/admin/ai-bans")
+                  ? "bg-indigo-50 text-indigo-700"
+                  : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+              )}
+            >
+              <Ban className={cn("h-4 w-4", pathname.startsWith("/admin/ai-bans") ? "text-indigo-600" : "text-zinc-400")} />
+              Baneos AI
             </Link>
           </>
         )}

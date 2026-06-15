@@ -8,18 +8,41 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  username     String   @unique
+  id           String    @id @default(cuid())
+  username     String    @unique
   passwordHash String
-  role         String   @default("USER") // "ADMIN" | "USER"
+  role         String    @default("USER") // "ADMIN" | "USER"
   displayName  String?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
+  aiMisuseCount  Int       @default(0)
+  aiBlockedUntil DateTime?
+  aiBlockLevel   Int       @default(0)
 
   statements   Statement[]
   payslips     Payslip[]
   transactions Transaction[]
   importJobs   ImportJob[]
   reviewedStatements Statement[] @relation("ReviewedStatements")
+  aiBans AiBan[]
+  aiBanPardons AiBan[] @relation("BanPardon")
+}
+
+model AiBan {
+  id           String    @id @default(cuid())
+  userId       String
+  level        Int       // 1=5min, 2=1h, 3=until midnight, 4=permanent
+  status       String    @default("ACTIVE") // ACTIVE | EXPIRED | PARDONED
+  reason       String?
+  bannedAt     DateTime  @default(now())
+  expiresAt    DateTime?
+  pardonedAt   DateTime?
+  pardonedById String?
+
+  user      User  @relation(fields: [userId], references: [id])
+  pardonedBy User? @relation("BanPardon", fields: [pardonedById], references: [id])
+
+  @@index([userId, status])
+  @@index([status])
 }
 
 model Payslip {
