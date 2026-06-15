@@ -1,0 +1,228 @@
+import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
+import { prisma } from "@/lib/prisma";
+import { analyzePayslipWithDeepSeek } from "@/lib/ai/deepseek";
+import { getSession } from "@/lib/auth";
+import { money, toMoneyNumber } from "@/lib/money";
+import { extractPdfText } from "@/lib/pdf-parser";
+import { parsePayslipBuffer } from "@/lib/payslip-parser";
+import { enforceRateLimit, getClientIp } from "@/lib/rate-limit";
+import { savePendingPayslipPdf, savePayslipPdf } from "@/lib/statement-pdf";
+
+export async function POST(req: NextRequest) {
+  try {
+    const session = await getSession();
+    const ip = getClientIp(req);
+    const rateLimit = enforceRateLimit({
+      key: `payslip-upload:${ip}`,
+      limit: 10,
+      windowMs: 15 * 60 * 1000,
+    });
+
+    if (!rateLimit.ok) {
+      return NextResponse.json(
+        { error: "Demasiadas cargas recientes. Intentá nuevamente en unos minutos." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+        }
+      );
+    }
+
+    const formData = await req.formData();
+    const file = formData.get("file") as File | null;
+
+    if (!file || !file.name.toLowerCase().endsWith(".pdf")) {
+      return NextResponse.json({ error: "Se requiere un archivo PDF" }, { status: 400 });
+    }
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const hash = crypto.createHash("sha256").update(buffer).digest("hex");
+
+    const existing = await prisma.payslip.findUnique({ where: { sourceHash: hash } });
+    if (existing) {
+      return NextResponse.json(
+        {
+          error: "DUPLICATE_PAYSLIP",
+          existingPayslipId: existing.id,
+          processingStatus: existing.processingStatus,
+        },
+        { status: 409 }
+      );
+    }
+
+    let mappedPayslip:
+      | {
+          bankName?: string;
+          employerName: string;
+          employeeName: string;
+          periodLabel: string;
+          payDate: string;
+          netAmountArs: number;
+          grossAmountArs?: number;
+          processingStatus: "COMPLETED" | "REVIEW_REQUIRED";
+          analysisProvider: string | null;
+          analysisModel: string | null;
+          analysisPromptVersion: string | null;
+          analysisConfidence: number | null;
+          analysisNotes: string | null;
+          analysisStructuredJson: string | null;
+        };
+
+    try {
+      const parsed = await parsePayslipBuffer(buffer);
+      mappedPayslip = {
+        employerName: parsed.employerName,
+        bankName: parsed.bankName,
+        employeeName: parsed.employeeName,
+        periodLabel: parsed.periodLabel,
+        payDate: parsed.payDate,
+        netAmountArs: parsed.netAmountArs,
+        grossAmountArs: parsed.grossAmountArs,
+        processingStatus: "COMPLETED",
+        analysisProvider: null,
+        analysisModel: null,
+        analysisPromptVersion: null,
+        analysisConfidence: null,
+        analysisNotes: null,
+        analysisStructuredJson: null,
+      };
+    } catch {
+      try {
+        const pdfText = await extractPdfText(buffer);
+        const analysis = await analyzePayslipWithDeepSeek(pdfText, file.name);
+        mappedPayslip = {
+          employerName: analysis.payslip.employer_name,
+          bankName: undefined,
+          employeeName: analysis.payslip.employee_name,
+          periodLabel: analysis.payslip.period_label,
+          payDate: analysis.payslip.pay_date,
+          netAmountArs: analysis.payslip.net_amount_ars,
+          grossAmountArs: analysis.payslip.gross_amount_ars,
+          processingStatus: analysis.payslip.consistency.passed ? "COMPLETED" : "REVIEW_REQUIRED",
+          analysisProvider: "AI",
+          analysisModel: analysis.artifacts.model,
+          analysisPromptVersion: analysis.artifacts.prompt_version,
+          analysisConfidence: analysis.payslip.consistency.confidence,
+          analysisNotes: analysis.payslip.consistency.notes.join("\n") || null,
+          analysisStructuredJson: analysis.artifacts.parsed_result_json,
+        };
+      } catch (error) {
+        const queuedPayslip = await prisma.payslip.create({
+          data: {
+            rawFilename: file.name,
+            sourceHash: hash,
+            processingStatus: "QUEUED",
+            analysisProvider: "AI",
+            ...(session?.userId
+              ? {
+                  user: {
+                    connect: { id: session.userId },
+                  },
+                }
+              : {}),
+          },
+        });
+
+        savePendingPayslipPdf(queuedPayslip.id, buffer);
+
+        return NextResponse.json(
+          {
+            payslipId: queuedPayslip.id,
+            processingStatus: "QUEUED",
+            importMethod: "AI",
+            message: process.env.DEEPSEEK_API_KEY
+              ? "Recibo guardado para análisis AI en segundo plano. El ingreso se generará automáticamente al terminar el procesamiento."
+              : "Recibo guardado para análisis AI pendiente de integración. Se procesará automáticamente cuando AI esté configurada.",
+          },
+          { status: 202 }
+        );
+      }
+    }
+
+    const created = await prisma.$transaction(async (tx) => {
+      const salaryCategory = await tx.category.upsert({
+        where: { name: "Sueldo" },
+        update: {},
+        create: {
+          name: "Sueldo",
+          icon: "💼",
+          color: "#10B981",
+        },
+      });
+
+      const incomeTransaction = await tx.transaction.create({
+        data: {
+          userId: session?.userId ?? null,
+          date: new Date(mappedPayslip.payDate),
+          merchantName: mappedPayslip.employerName,
+          normalizedMerchant: mappedPayslip.employerName.replace(/\s+/g, " ").trim(),
+          amountArs: money(mappedPayslip.netAmountArs),
+          amountUsd: null,
+          categoryId: salaryCategory.id,
+          transactionType: "CREDIT",
+          source: "IMPORTED",
+          isInstallment: false,
+        },
+      });
+
+      const payslip = await tx.payslip.create({
+        data: {
+          rawFilename: file.name,
+          sourceHash: hash,
+          employerName: mappedPayslip.employerName,
+          bankName: mappedPayslip.bankName,
+          employeeName: mappedPayslip.employeeName,
+          periodLabel: mappedPayslip.periodLabel,
+          payDate: new Date(mappedPayslip.payDate),
+          netAmount: money(mappedPayslip.netAmountArs),
+          grossAmount: mappedPayslip.grossAmountArs == null ? null : money(mappedPayslip.grossAmountArs),
+          processingStatus: mappedPayslip.processingStatus,
+          analysisProvider: mappedPayslip.analysisProvider,
+          analysisModel: mappedPayslip.analysisModel,
+          analysisPromptVersion: mappedPayslip.analysisPromptVersion,
+          analysisConfidence: mappedPayslip.analysisConfidence,
+          analysisNotes: mappedPayslip.analysisNotes,
+          analysisStructuredJson: mappedPayslip.analysisStructuredJson,
+          ...(session?.userId
+            ? {
+                user: {
+                  connect: { id: session.userId },
+                },
+              }
+            : {}),
+          incomeTransaction: {
+            connect: { id: incomeTransaction.id },
+          },
+        },
+      });
+
+      return { payslip, incomeTransaction };
+    });
+
+    savePayslipPdf(created.payslip.id, buffer);
+
+    return NextResponse.json(
+      {
+        payslipId: created.payslip.id,
+        transactionId: created.incomeTransaction.id,
+        rawFilename: created.payslip.rawFilename,
+        uploadedAt: created.payslip.uploadedAt,
+        employerName: created.payslip.employerName,
+        bankName: created.payslip.bankName,
+        employeeName: created.payslip.employeeName,
+        periodLabel: created.payslip.periodLabel,
+        amountArs: toMoneyNumber(created.payslip.netAmount),
+        processingStatus: created.payslip.processingStatus,
+        analysisConfidence: created.payslip.analysisConfidence,
+        importMethod: created.payslip.analysisProvider ? "AI" : "MANUAL",
+      },
+      { status: 201 }
+    );
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Error inesperado al cargar el recibo" },
+      { status: 500 }
+    );
+  }
+}

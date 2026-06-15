@@ -18,15 +18,17 @@ interface Props {
   data: CategoryData[];
   currentMonth?: string;
   currentMonths?: number;
+  currentOrigin?: string;
 }
 
-export default function SpendingByCategory({ data, currentMonth, currentMonths }: Props) {
+export default function SpendingByCategory({ data, currentMonth, currentMonths, currentOrigin }: Props) {
   const router = useRouter();
 
   function navigateToCategory(categoryId: string) {
     const sp = new URLSearchParams();
     if (currentMonth) sp.set("month", currentMonth);
     else if (currentMonths) sp.set("months", String(currentMonths));
+    if (currentOrigin && currentOrigin !== "all") sp.set("origin", currentOrigin);
     if (categoryId && categoryId !== "unknown") sp.set("categoryId", categoryId);
     router.push(`/transactions?${sp.toString()}`);
   }

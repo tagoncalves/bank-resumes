@@ -15,6 +15,7 @@ const CATEGORIES = [
   { name: "Viajes",          icon: "✈️", color: "#06B6D4" },
   { name: "Transporte",      icon: "🚌", color: "#64748B" },
   { name: "Suscripciones",   icon: "📱", color: "#A855F7" },
+  { name: "Sueldo",          icon: "💼", color: "#10B981" },
   { name: "Otros",           icon: "📦", color: "#94A3B8" },
 ];
 

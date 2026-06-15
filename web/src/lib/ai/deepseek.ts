@@ -1,6 +1,21 @@
 import type { AIAnalysisArtifacts, AIParsedStatement, ParsedBalanceSummary, ParsedHeader, ParsedTransaction } from "@/lib/pdf-parser/types";
 
 export const DEEPSEEK_PROMPT_VERSION = "2026-06-13-v1";
+export const PAYSLIP_AI_PROMPT_VERSION = "2026-06-14-v1";
+
+export type AIParsedPayslip = {
+  employer_name: string;
+  employee_name: string;
+  period_label: string;
+  pay_date: string;
+  net_amount_ars: number;
+  gross_amount_ars?: number;
+  consistency: {
+    passed: boolean;
+    confidence: number;
+    notes: string[];
+  };
+};
 
 type DeepSeekChatResponse = {
   choices?: Array<{
@@ -17,7 +32,7 @@ function getDeepSeekConfig() {
   const apiKey = process.env.DEEPSEEK_API_KEY;
 
   if (!apiKey) {
-    throw new Error("Banco no reconocido por el parser nativo y DeepSeek no está configurado. Definí DEEPSEEK_API_KEY para habilitar el mapeo asistido por AI.");
+    throw new Error("Banco no reconocido por el parser nativo y AI no está configurada. Definí DEEPSEEK_API_KEY para habilitar el mapeo asistido por AI.");
   }
 
   return {
@@ -65,6 +80,12 @@ function normalizeDate(value: unknown, fieldName: string): string {
   const raw = parseRequiredString(value, fieldName);
   const isoDate = /^\d{4}-\d{2}-\d{2}$/;
   if (isoDate.test(raw)) return raw;
+
+  const localDate = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (localDate) {
+    const [, day, month, year] = localDate;
+    return `${year}-${month}-${day}`;
+  }
 
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) {
@@ -243,19 +264,19 @@ export async function analyzeStatementWithDeepSeek(pdfText: string, filename: st
   const payload = await response.json() as DeepSeekChatResponse;
 
   if (!response.ok) {
-    throw new Error(payload.error?.message ?? "DeepSeek devolvió un error al analizar el resumen");
+    throw new Error(payload.error?.message ?? "AI devolvió un error al analizar el resumen");
   }
 
   const rawContent = payload.choices?.[0]?.message?.content;
   if (!rawContent) {
-    throw new Error("DeepSeek no devolvió contenido utilizable");
+    throw new Error("AI no devolvió contenido utilizable");
   }
 
   let parsedContent: unknown;
   try {
     parsedContent = JSON.parse(rawContent);
   } catch {
-    throw new Error("La respuesta de DeepSeek no fue JSON válido");
+    throw new Error("La respuesta de AI no fue JSON válido");
   }
 
   const normalized = parsedContent as Record<string, unknown>;
@@ -282,6 +303,123 @@ export async function analyzeStatementWithDeepSeek(pdfText: string, filename: st
       parsed_result_json: JSON.stringify(statement, null, 2),
       model,
       prompt_version: DEEPSEEK_PROMPT_VERSION,
+    },
+  };
+}
+
+function normalizePayslip(value: unknown): AIParsedPayslip {
+  if (!value || typeof value !== "object") {
+    throw new Error("Recibo AI inválido");
+  }
+
+  const payslip = value as Record<string, unknown>;
+  const employerName = parseRequiredString(payslip.employer_name, "employer_name");
+  const employeeName = parseRequiredString(payslip.employee_name, "employee_name");
+  const periodLabel = parseRequiredString(payslip.period_label, "period_label");
+  const payDate = normalizeDate(payslip.pay_date, "pay_date");
+  const netAmount = parseNumber(payslip.net_amount_ars, "net_amount_ars");
+  const grossAmount = parseOptionalNumber(payslip.gross_amount_ars);
+  const localNotes: string[] = [];
+
+  if (grossAmount != null && grossAmount + 1 < netAmount) {
+    localNotes.push("El neto informado supera al bruto informado.");
+  }
+
+  const consistency = normalizeConsistency(payslip.consistency, localNotes);
+
+  return {
+    employer_name: employerName,
+    employee_name: employeeName,
+    period_label: periodLabel,
+    pay_date: payDate,
+    net_amount_ars: netAmount,
+    gross_amount_ars: grossAmount,
+    consistency,
+  };
+}
+
+export async function analyzePayslipWithDeepSeek(pdfText: string, filename: string): Promise<{
+  payslip: AIParsedPayslip;
+  artifacts: {
+    source_text_excerpt: string;
+    request_payload: string;
+    raw_response: string;
+    parsed_result_json: string;
+    model: string;
+    prompt_version: string;
+  };
+}> {
+  const { apiKey, baseUrl, model } = getDeepSeekConfig();
+  const sourceTextExcerpt = pdfText.slice(0, 40000);
+
+  const prompt = [
+    "Sos un analista experto en recibos de sueldo argentinos.",
+    "Debés leer el texto OCR de un PDF y devolver exclusivamente JSON válido.",
+    "Extraé employer_name, employee_name, period_label, pay_date, net_amount_ars, gross_amount_ars y consistency.",
+    "period_label debe conservar el período legible del recibo, por ejemplo 'Mayo 2026'.",
+    "pay_date debe ir en formato YYYY-MM-DD.",
+    "net_amount_ars debe ser el Neto a Cobrar.",
+    "gross_amount_ars debe ser el total bruto antes de descuentos si puede identificarse; si no, dejalo vacío.",
+    "En consistency devolvé passed:boolean, confidence:0..1 y notes:string[].",
+    `Archivo: ${filename}`,
+    "Texto del PDF:",
+    sourceTextExcerpt,
+  ].join("\n\n");
+
+  const requestPayload = JSON.stringify({
+    model,
+    temperature: 0.1,
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "system",
+        content: "Respondé solo con JSON estricto y sin markdown.",
+      },
+      {
+        role: "user",
+        content: prompt,
+      },
+    ],
+  });
+
+  const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: requestPayload,
+  });
+
+  const payload = await response.json() as DeepSeekChatResponse;
+
+  if (!response.ok) {
+    throw new Error(payload.error?.message ?? "AI devolvió un error al analizar el recibo");
+  }
+
+  const rawContent = payload.choices?.[0]?.message?.content;
+  if (!rawContent) {
+    throw new Error("AI no devolvió contenido utilizable");
+  }
+
+  let parsedContent: unknown;
+  try {
+    parsedContent = JSON.parse(rawContent);
+  } catch {
+    throw new Error("La respuesta de AI no fue JSON válido");
+  }
+
+  const payslip = normalizePayslip(parsedContent);
+
+  return {
+    payslip,
+    artifacts: {
+      source_text_excerpt: sourceTextExcerpt,
+      request_payload: requestPayload,
+      raw_response: rawContent,
+      parsed_result_json: JSON.stringify(payslip, null, 2),
+      model,
+      prompt_version: PAYSLIP_AI_PROMPT_VERSION,
     },
   };
 }

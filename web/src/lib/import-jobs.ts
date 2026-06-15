@@ -26,7 +26,7 @@ export async function createAIImportJob(input: StartAIImportJobInput) {
       rawFilename: input.rawFilename,
       status: "QUEUED",
       importMethod: "AI",
-      analysisProvider: "DEEPSEEK",
+      analysisProvider: "AI",
     },
   });
 
@@ -83,7 +83,7 @@ export async function reprocessStatementWithAI(statementId: string) {
       rawFilename: statement.rawFilename,
       status: "QUEUED",
       importMethod: "AI",
-      analysisProvider: "DEEPSEEK",
+      analysisProvider: "AI",
     },
   });
 
@@ -163,7 +163,7 @@ async function processNewStatementJob(jobId: string, input: StartAIImportJobInpu
     rawFilename: input.rawFilename,
     importMethod: "AI",
     processingStatus,
-    analysisProvider: "DEEPSEEK",
+    analysisProvider: "AI",
     analysisModel: analysis.artifacts.model,
     analysisPromptVersion: analysis.artifacts.prompt_version,
     analysisConfidence: aiParsed.consistency.confidence,
@@ -179,7 +179,7 @@ async function processNewStatementJob(jobId: string, input: StartAIImportJobInpu
       statementId: statement.id,
       bankName: aiParsed.header.bank_name,
       status: processingStatus,
-      analysisProvider: "DEEPSEEK",
+      analysisProvider: "AI",
       analysisModel: analysis.artifacts.model,
       analysisPromptVersion: analysis.artifacts.prompt_version,
       analysisConfidence: aiParsed.consistency.confidence,
@@ -203,7 +203,7 @@ async function processExistingStatementJob(jobId: string, input: ExistingStateme
     data: {
       bankName: aiParsed.header.bank_name,
       parserVersion: aiParsed.parser_version,
-      analysisProvider: "DEEPSEEK",
+      analysisProvider: "AI",
       analysisModel: analysis.artifacts.model,
       analysisPromptVersion: analysis.artifacts.prompt_version,
       analysisConfidence: aiParsed.consistency.confidence,
@@ -221,7 +221,7 @@ async function processExistingStatementJob(jobId: string, input: ExistingStateme
     data: {
       bankName: aiParsed.header.bank_name,
       status: processingStatus,
-      analysisProvider: "DEEPSEEK",
+      analysisProvider: "AI",
       analysisModel: analysis.artifacts.model,
       analysisPromptVersion: analysis.artifacts.prompt_version,
       analysisConfidence: aiParsed.consistency.confidence,

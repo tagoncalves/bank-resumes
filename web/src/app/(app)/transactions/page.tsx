@@ -9,6 +9,10 @@ import { AddTransactionForm, type TransactionPrefill } from "@/components/ui/add
 import { TransactionMenu } from "@/components/ui/transaction-menu";
 import { EditTransactionModal } from "@/components/ui/edit-transaction-modal";
 import { TransactionFilter } from "@/components/transactions/TransactionFilter";
+import { CategoryPicker } from "@/components/ui/category-picker";
+import { MerchantNameEditor } from "@/components/ui/inline-transaction-editors";
+
+type Category = { id: string; name: string; color: string | null };
 
 interface Transaction {
   id: string;
@@ -26,6 +30,7 @@ interface Transaction {
   categoryId?: string | null;
   category?: { name: string; color: string } | null;
   statement?: { bankName: string; periodEnd: string } | null;
+  payslip?: { employerName?: string | null; periodLabel?: string | null } | null;
 }
 
 type SortField = "date" | "merchantName" | "amountArs" | "category";
@@ -43,8 +48,11 @@ function TransactionsInner() {
   const currentMonth = searchParams.get("month");
   const currentMonths = searchParams.get("months") ? parseInt(searchParams.get("months")!, 10) : 6;
   const categoryIdsStr = searchParams.get("categoryId") ?? "";
+  const originStr = searchParams.get("origin") ?? "";
+  const typeStr = searchParams.get("type") ?? "";
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [total, setTotal] = useState(0);
   const [netTotal, setNetTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -80,6 +88,8 @@ function TransactionsInner() {
     params.set("dateFrom", dateFrom);
     params.set("dateTo", dateTo);
     if (categoryIdsStr) params.set("categoryId", categoryIdsStr);
+    if (originStr) params.set("origin", originStr);
+    if (typeStr) params.set("type", typeStr);
     const res = await fetch(`/api/transactions?${params}`);
     const json = await res.json();
     setTransactions(json.data ?? []);
@@ -87,7 +97,7 @@ function TransactionsInner() {
     setNetTotal(json.netTotal ?? 0);
     setLoading(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, search, sortBy, sortOrder, currentMonth, currentMonths, categoryIdsStr]);
+  }, [page, search, sortBy, sortOrder, currentMonth, currentMonths, categoryIdsStr, originStr, typeStr]);
 
   useEffect(() => {
     const id = setTimeout(fetchTransactions, 300);
@@ -95,8 +105,12 @@ function TransactionsInner() {
   }, [fetchTransactions]);
 
   useEffect(() => {
+    fetch("/api/categories").then((r) => r.json()).then(setCategories).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     setPage(1);
-  }, [search, sortBy, sortOrder, currentMonth, currentMonths, categoryIdsStr]);
+  }, [search, sortBy, sortOrder, currentMonth, currentMonths, categoryIdsStr, originStr, typeStr]);
 
   function handleSort(field: SortField) {
     if (field === sortBy) {
@@ -197,6 +211,7 @@ function TransactionsInner() {
                 {transactions.map((t) => {
                   const isCredit = t.transactionType === "CREDIT";
                   const isManual = t.source === "MANUAL";
+                  const isPayslip = !!t.payslip;
                   return (
                     <tr key={t.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
                       <td className="whitespace-nowrap px-5 py-2.5 font-mono text-xs text-zinc-500">
@@ -204,15 +219,17 @@ function TransactionsInner() {
                       </td>
                       <td className="px-5 py-2.5">
                         <div className="flex items-center gap-2">
-                          <span className="text-zinc-800">{t.normalizedMerchant || t.merchantName}</span>
+                          {isManual ? (
+                            <MerchantNameEditor
+                              transactionId={t.id}
+                              currentValue={t.normalizedMerchant || t.merchantName}
+                            />
+                          ) : (
+                            <span className="text-zinc-800">{t.normalizedMerchant || t.merchantName}</span>
+                          )}
                           {t.isInstallment && (
                             <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600">
                               {t.installmentCurrent}/{t.installmentTotal}
-                            </span>
-                          )}
-                          {isManual && (
-                            <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
-                              manual
                             </span>
                           )}
                         </div>
@@ -223,21 +240,21 @@ function TransactionsInner() {
                             {t.statement.bankName}
                             {t.cardLastFour && <span className="ml-1 text-zinc-400">·•••{t.cardLastFour}</span>}
                           </>
+                        ) : t.payslip ? (
+                          <>
+                            <span>Recibo</span>
+                            {t.payslip.periodLabel && <span className="ml-1 text-zinc-400">· {t.payslip.periodLabel}</span>}
+                          </>
                         ) : (
                           <span className="text-zinc-400">Manual</span>
                         )}
                       </td>
                       <td className="px-5 py-2.5">
-                        {t.category ? (
-                          <span
-                            className="rounded-full px-2 py-0.5 text-[11px] font-medium"
-                            style={{ background: `${t.category.color}20`, color: t.category.color }}
-                          >
-                            {t.category.name}
-                          </span>
-                        ) : (
-                          <span className="text-zinc-400 text-xs">—</span>
-                        )}
+                        <CategoryPicker
+                          transactionId={t.id}
+                          currentCategoryId={t.categoryId}
+                          categories={categories}
+                        />
                       </td>
                       <td className={`px-5 py-2.5 text-right font-mono font-medium tabular-nums ${isCredit ? "text-emerald-600" : "text-zinc-800"}`}>
                         <div className="flex items-center justify-end gap-1.5">
@@ -262,8 +279,8 @@ function TransactionsInner() {
                             installmentCurrent: t.installmentCurrent,
                             installmentTotal: t.installmentTotal,
                           })}
-                          onEdit={isManual ? () => setEditingTx(t) : undefined}
-                          onDelete={isManual ? () => handleDelete(t.id) : undefined}
+                          onEdit={isManual && !isPayslip ? () => setEditingTx(t) : undefined}
+                          onDelete={isManual && !isPayslip ? () => handleDelete(t.id) : undefined}
                         />
                       </td>
                     </tr>

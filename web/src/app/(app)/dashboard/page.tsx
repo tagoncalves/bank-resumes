@@ -2,13 +2,15 @@ import { redirect } from "next/navigation";
 import { getDashboardSummary } from "@/lib/data";
 import { getSession } from "@/lib/auth";
 import SummaryCards from "@/components/dashboard/SummaryCards";
+import IncomeExpenseTrend from "@/components/dashboard/IncomeExpenseTrend";
 import SpendingByCategory from "@/components/dashboard/SpendingByCategory";
 import MonthlyTrend from "@/components/dashboard/MonthlyTrend";
+import SavingsWidget from "@/components/dashboard/SavingsWidget";
 import TopMerchants from "@/components/dashboard/TopMerchants";
-import FeeBreakdown from "@/components/dashboard/FeeBreakdown";
 import { DashboardFilter } from "@/components/dashboard/DashboardFilter";
 import Link from "next/link";
 import { PlusCircle, Upload, Calendar } from "lucide-react";
+import OpenUploadButton from "@/components/upload/OpenUploadButton";
 
 function prevMonthParam() {
   const now = new Date();
@@ -19,7 +21,7 @@ function prevMonthParam() {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; months?: string }>;
+  searchParams: Promise<{ month?: string; months?: string; origin?: string }>;
 }) {
   const sp = await searchParams;
 
@@ -40,8 +42,10 @@ export default async function DashboardPage({
     months = Math.max(1, Math.min(24, parseInt(sp.months, 10) || 6));
   }
 
+  const origin = sp.origin ?? "all";
+
   const session = await getSession();
-  const data = await getDashboardSummary({ months, from, to, userId: session?.userId });
+  const data = await getDashboardSummary({ months, from, to, userId: session?.userId, origin });
 
   const periodLabel = sp.month
     ? new Date(from!.getFullYear(), from!.getMonth(), 1)
@@ -49,10 +53,11 @@ export default async function DashboardPage({
     : `Últimos ${months} ${months === 1 ? "mes" : "meses"}`;
 
   const filter = (
-    <DashboardFilter
-      currentMonth={sp.month}
-      currentMonths={sp.months ? parseInt(sp.months, 10) : undefined}
-    />
+      <DashboardFilter
+        currentMonth={sp.month}
+        currentMonths={sp.months ? parseInt(sp.months, 10) : undefined}
+        currentOrigin={origin}
+      />
   );
 
   if (data.totalTransactionCount === 0) {
@@ -68,7 +73,7 @@ export default async function DashboardPage({
               Sin movimientos en {periodLabel}
             </p>
             <p className="mt-1 text-sm text-zinc-400">
-              No hay transacciones registradas para este período.
+              No hay ingresos ni egresos registrados para este período.
             </p>
           </div>
           <div className="flex gap-3">
@@ -79,13 +84,13 @@ export default async function DashboardPage({
               <PlusCircle className="h-4 w-4" />
               Crear movimiento
             </Link>
-            <Link
-              href="/upload"
+            <OpenUploadButton
+              kind="statement"
               className="flex items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50"
             >
               <Upload className="h-4 w-4" />
               Importar resumen
-            </Link>
+            </OpenUploadButton>
           </div>
         </div>
       </div>
@@ -95,27 +100,32 @@ export default async function DashboardPage({
   return (
     <div className="space-y-5">
       {filter}
-      <SummaryCards
-        totalCurrentBalance={data.totalCurrentBalance}
-        totalCurrentBalanceUsd={data.totalCurrentBalanceUsd}
-        totalSpendingThisMonth={data.totalSpendingThisMonth}
-        totalSpendingLastMonth={data.totalSpendingLastMonth}
-        spendingChangePercent={data.spendingChangePercent}
-        totalFees={data.feeBreakdown.total}
-        periodLabel={periodLabel}
-        isMonthFilter={!!searchParams.month}
-      />
+        <SummaryCards
+          totalIncomeArs={data.totalIncomeArs}
+          totalExpenseArs={data.totalExpenseArs}
+          netBalanceArs={data.netBalanceArs}
+          netBalanceUsd={data.netBalanceUsd}
+          periodLabel={periodLabel}
+        />
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <MonthlyTrend data={data.monthlyTrend} />
-        <SpendingByCategory
-          data={data.spendingByCategory}
-          currentMonth={searchParams.month}
-          currentMonths={searchParams.months ? parseInt(searchParams.months, 10) : undefined}
-        />
+        <IncomeExpenseTrend data={data.monthlyTrend} />
       </div>
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <SpendingByCategory
+          data={data.spendingByCategory}
+          currentMonth={sp.month}
+          currentMonths={sp.months ? parseInt(sp.months, 10) : undefined}
+          currentOrigin={origin}
+        />
+        <SavingsWidget
+          cumulativeNetSavings={data.cumulativeNetSavings}
+          averageMonthlyNet={data.averageMonthlyNet}
+          periodLabel={periodLabel}
+        />
+      </div>
+      <div className="grid grid-cols-1 gap-5">
         <TopMerchants data={data.topMerchants} />
-        <FeeBreakdown data={data.feeBreakdown} />
       </div>
     </div>
   );

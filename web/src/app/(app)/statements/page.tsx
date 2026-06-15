@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { formatARS, formatDate } from "@/lib/formatters";
 import { Card } from "@/components/ui/card";
 import { FileText, ArrowRight } from "lucide-react";
+import OpenUploadButton from "@/components/upload/OpenUploadButton";
 
 const BANK_COLORS: Record<string, string> = {
   BBVA: "bg-blue-100 text-blue-700",
@@ -29,12 +30,12 @@ export default async function StatementsPage() {
           <p className="mt-1 text-xs text-zinc-400">
             Importá tu primer PDF desde la sección Importar
           </p>
-          <Link
-            href="/upload"
+          <OpenUploadButton
+            kind="statement"
             className="mt-4 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
           >
             Importar
-          </Link>
+          </OpenUploadButton>
         </Card>
       ) : (
         <div className="space-y-2">

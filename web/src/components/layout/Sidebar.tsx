@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, FileText, List, Upload, CreditCard, Users, LogOut, ShieldAlert } from "lucide-react";
+import { LayoutDashboard, FileText, List, CreditCard, Users, LogOut, ShieldAlert, FileBadge2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/statements", label: "Resúmenes", icon: FileText },
   { href: "/transactions", label: "Movimientos", icon: List },
-  { href: "/upload", label: "Importar", icon: Upload },
+  { href: "/statements", label: "Resúmenes", icon: FileText },
+  { href: "/payslips", label: "Recibos", icon: FileBadge2 },
 ];
 
 interface Me { username: string; role: string; displayName: string | null }
@@ -38,7 +38,7 @@ export default function Sidebar() {
           <CreditCard className="h-4 w-4 text-white" />
         </div>
         <div>
-          <p className="text-sm font-semibold text-zinc-900">BankResume</p>
+          <p className="text-sm font-semibold text-zinc-900">Nerun Finance</p>
           <p className="text-[10px] text-zinc-400 leading-none">Gestor financiero</p>
         </div>
       </div>
@@ -64,7 +64,6 @@ export default function Sidebar() {
             </Link>
           );
         })}
-
         {/* Admin-only */}
         {me?.role === "ADMIN" && (
           <>

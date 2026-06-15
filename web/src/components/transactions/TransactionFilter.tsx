@@ -17,6 +17,17 @@ interface Category {
   color: string;
 }
 
+const ORIGINS = [
+  { label: "Manuales", value: "manual" },
+  { label: "Resúmenes", value: "statement" },
+  { label: "Recibos", value: "payslip" },
+];
+
+const TYPES = [
+  { label: "Gastos", value: "DEBIT" },
+  { label: "Ingresos", value: "CREDIT" },
+];
+
 export function TransactionFilter() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -28,7 +39,11 @@ export function TransactionFilter() {
   const rawMonths = searchParams.get("months");
   const currentMonths = rawMonths ? parseInt(rawMonths, 10) : undefined;
   const categoryIdsStr = searchParams.get("categoryId") ?? "";
+  const originStr = searchParams.get("origin") ?? "";
+  const typeStr = searchParams.get("type") ?? "";
   const selectedCatIds = categoryIdsStr ? categoryIdsStr.split(",").filter(Boolean) : [];
+  const selectedOrigins = originStr ? originStr.split(",").filter(Boolean) : [];
+  const selectedTypes = typeStr ? typeStr.split(",").filter(Boolean) : [];
 
   const activeMonths = currentMonth ? undefined : (currentMonths ?? 6);
   const activeMonth = currentMonth;
@@ -50,11 +65,13 @@ export function TransactionFilter() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  function buildUrl(month?: string, months?: number, catIds?: string[]) {
+  function buildUrl(month?: string, months?: number, catIds?: string[], origins?: string[], types?: string[]) {
     const sp = new URLSearchParams();
     if (month) sp.set("month", month);
     else if (months) sp.set("months", String(months));
     if (catIds?.length) sp.set("categoryId", catIds.join(","));
+    if (origins?.length) sp.set("origin", origins.join(","));
+    if (types?.length) sp.set("type", types.join(","));
     return `/transactions?${sp.toString()}`;
   }
 
@@ -70,7 +87,9 @@ export function TransactionFilter() {
       buildUrl(
         `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
         undefined,
-        selectedCatIds
+        selectedCatIds,
+        selectedOrigins,
+        selectedTypes
       )
     );
   }
@@ -81,28 +100,44 @@ export function TransactionFilter() {
       buildUrl(
         `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
         undefined,
-        selectedCatIds
+        selectedCatIds,
+        selectedOrigins,
+        selectedTypes
       )
     );
   }
 
   function setWindow(w: number) {
-    router.push(buildUrl(undefined, w, selectedCatIds));
+    router.push(buildUrl(undefined, w, selectedCatIds, selectedOrigins, selectedTypes));
   }
 
   function selectMonth() {
-    router.push(buildUrl(currentYM, undefined, selectedCatIds));
+    router.push(buildUrl(currentYM, undefined, selectedCatIds, selectedOrigins, selectedTypes));
   }
 
   function toggleCategory(id: string) {
     const newIds = selectedCatIds.includes(id)
       ? selectedCatIds.filter((x) => x !== id)
       : [...selectedCatIds, id];
-    router.push(buildUrl(activeMonth, activeMonths, newIds));
+    router.push(buildUrl(activeMonth, activeMonths, newIds, selectedOrigins, selectedTypes));
   }
 
   function clearCategories() {
-    router.push(buildUrl(activeMonth, activeMonths, []));
+    router.push(buildUrl(activeMonth, activeMonths, [], selectedOrigins, selectedTypes));
+  }
+
+  function toggleOrigin(origin: string) {
+    const newOrigins = selectedOrigins.includes(origin)
+      ? selectedOrigins.filter((item) => item !== origin)
+      : [...selectedOrigins, origin];
+    router.push(buildUrl(activeMonth, activeMonths, selectedCatIds, newOrigins, selectedTypes));
+  }
+
+  function toggleType(type: string) {
+    const newTypes = selectedTypes.includes(type)
+      ? selectedTypes.filter((item) => item !== type)
+      : [...selectedTypes, type];
+    router.push(buildUrl(activeMonth, activeMonths, selectedCatIds, selectedOrigins, newTypes));
   }
 
   const isCurrentMonth =
@@ -241,6 +276,44 @@ export function TransactionFilter() {
               </button>
             </span>
           ))}
+
+      <div className="h-4 w-px bg-zinc-200" />
+
+      <div className="flex gap-1">
+        {ORIGINS.map((origin) => (
+          <button
+            key={origin.value}
+            onClick={() => toggleOrigin(origin.value)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              selectedOrigins.includes(origin.value)
+                ? "bg-emerald-100 text-emerald-700"
+                : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+            }`}
+          >
+            {origin.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="h-4 w-px bg-zinc-200" />
+
+      <div className="flex gap-1">
+        {TYPES.map((type) => (
+          <button
+            key={type.value}
+            onClick={() => toggleType(type.value)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              selectedTypes.includes(type.value)
+                ? type.value === "CREDIT"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-red-100 text-red-700"
+                : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+            }`}
+          >
+            {type.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

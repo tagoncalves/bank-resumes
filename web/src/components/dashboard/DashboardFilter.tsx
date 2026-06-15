@@ -10,14 +10,24 @@ const WINDOWS = [
   { label: "12 meses", value: 12 },
 ];
 
+const ORIGINS = [
+  { label: "Todos", value: "all" },
+  { label: "Manuales", value: "manual" },
+  { label: "Resúmenes", value: "statement" },
+  { label: "Recibos", value: "payslip" },
+];
+
 export function DashboardFilter({
   currentMonth,
   currentMonths,
+  currentOrigin,
 }: {
   currentMonth?: string;
   currentMonths?: number;
+  currentOrigin?: string;
 }) {
   const router = useRouter();
+  const selectedOrigins = (currentOrigin ?? "all").split(",").filter(Boolean);
 
   // Determine what's active
   const activeMonths = currentMonth ? undefined : (currentMonths ?? 6);
@@ -25,6 +35,9 @@ export function DashboardFilter({
 
   function navigate(params: Record<string, string>) {
     const sp = new URLSearchParams(params);
+    if (currentOrigin && currentOrigin !== "all" && !sp.has("origin")) {
+      sp.set("origin", currentOrigin);
+    }
     router.push(`/dashboard?${sp.toString()}`);
   }
 
@@ -34,6 +47,19 @@ export function DashboardFilter({
 
   function setMonth(ym: string) {
     navigate({ month: ym });
+  }
+
+  function setOrigin(origin: string) {
+    const nextOrigins = selectedOrigins.includes(origin)
+      ? selectedOrigins.filter((item) => item !== origin)
+      : [...selectedOrigins.filter((item) => item !== "all"), origin];
+    const normalizedOrigins = nextOrigins.length ? nextOrigins : ["all"];
+    const params: Record<string, string> = currentMonth
+      ? { month: currentMonth }
+      : { months: String(currentMonths ?? 6) };
+    if (!normalizedOrigins.includes("all")) params.origin = normalizedOrigins.join(",");
+    const sp = new URLSearchParams(params);
+    router.push(`/dashboard?${sp.toString()}`);
   }
 
   // Month navigation
@@ -105,6 +131,25 @@ export function DashboardFilter({
         >
           <ChevronRight className="h-4 w-4" />
         </button>
+      </div>
+
+      <div className="h-4 w-px bg-zinc-200" />
+
+      <div className="flex gap-1">
+        {ORIGINS.map((origin) => (
+          <button
+            key={origin.value}
+            onClick={() => setOrigin(origin.value)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              (currentOrigin ?? "all") === origin.value
+              || (origin.value !== "all" && selectedOrigins.includes(origin.value))
+                ? "bg-emerald-100 text-emerald-700"
+                : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+            }`}
+          >
+            {origin.label}
+          </button>
+        ))}
       </div>
     </div>
   );

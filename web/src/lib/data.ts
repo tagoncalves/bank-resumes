@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { toMoneyNumber, toNullableMoneyNumber } from "@/lib/money";
 
@@ -8,80 +9,79 @@ export async function getDashboardSummary({
   from,
   to,
   userId,
-}: { months?: number; from?: Date; to?: Date; userId?: string } = {}) {
+  origin,
+}: { months?: number; from?: Date; to?: Date; userId?: string; origin?: string } = {}) {
   const now = new Date();
   const since = from ?? new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
   const until = to ?? now;
 
-  // For this-month / last-month comparison use the filter boundaries when a specific month is set
-  const periodStart = from ?? new Date(now.getFullYear(), now.getMonth(), 1);
-  const prevPeriodStart = from
-    ? new Date(from.getFullYear(), from.getMonth() - 1, 1)
-    : new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const periodEnd = to ?? now;
-
   const userFilter = userId ? { userId } : {};
+  const txPeriodFilter: Prisma.TransactionWhereInput = {
+    ...userFilter,
+    deletedAt: null,
+    date: { gte: since, lte: until },
+  };
+
+  const selectedOrigins = (origin ?? "all").split(",").filter(Boolean);
+  const originClauses: Prisma.TransactionWhereInput[] = [];
+  if (selectedOrigins.includes("manual")) originClauses.push({ source: "MANUAL" });
+  if (selectedOrigins.includes("statement")) originClauses.push({ statementId: { not: null } });
+  if (selectedOrigins.includes("payslip")) originClauses.push({ payslip: { isNot: null } });
+  const originFilter: Prisma.TransactionWhereInput =
+    !selectedOrigins.length || selectedOrigins.includes("all") ? {} : { OR: originClauses };
+
+  const scopedTxPeriodFilter: Prisma.TransactionWhereInput = {
+    ...txPeriodFilter,
+    ...originFilter,
+  };
 
   const [
-    thisMonthTx,
-    lastMonthTx,
+    incomeAgg,
+    expenseAgg,
     txByCategory,
     txForTrend,
     topMerchantsRaw,
-    feeAgg,
     categories,
     totalTransactionCount,
   ] = await Promise.all([
     prisma.transaction.aggregate({
-      where: { ...userFilter, date: { gte: periodStart, lte: periodEnd }, transactionType: "DEBIT", deletedAt: null },
-      _sum: { amountArs: true },
+      where: { ...scopedTxPeriodFilter, transactionType: "CREDIT" },
+      _sum: { amountArs: true, amountUsd: true },
     }),
     prisma.transaction.aggregate({
-      where: { ...userFilter, date: { gte: prevPeriodStart, lt: periodStart }, transactionType: "DEBIT", deletedAt: null },
-      _sum: { amountArs: true },
+      where: { ...scopedTxPeriodFilter, transactionType: "DEBIT" },
+      _sum: { amountArs: true, amountUsd: true },
     }),
     prisma.transaction.groupBy({
       by: ["categoryId"],
-      where: { ...userFilter, date: { gte: since, lte: until }, transactionType: "DEBIT", deletedAt: null },
+      where: { ...scopedTxPeriodFilter, transactionType: "DEBIT" },
       _sum: { amountArs: true },
       _count: { id: true },
       orderBy: { _sum: { amountArs: "desc" } },
     }),
     prisma.transaction.findMany({
-      where: { ...userFilter, date: { gte: since, lte: until }, transactionType: "DEBIT", deletedAt: null },
-      select: { date: true, amountArs: true, amountUsd: true },
+      where: scopedTxPeriodFilter,
+      select: { date: true, amountArs: true, amountUsd: true, transactionType: true },
     }),
     prisma.transaction.groupBy({
       by: ["normalizedMerchant", "categoryId"],
-      where: { ...userFilter, date: { gte: since, lte: until }, transactionType: "DEBIT", deletedAt: null },
+      where: { ...scopedTxPeriodFilter, transactionType: "DEBIT" },
       _sum: { amountArs: true },
       _count: { id: true },
       orderBy: { _sum: { amountArs: "desc" } },
       take: 10,
     }),
-    prisma.balanceSummary.aggregate({
-      where: { statement: { ...(userId ? { userId } : {}), periodEnd: { gte: since, lte: until } } },
-      _sum: {
-        commissionCuentaFull: true,
-        selloTax: true,
-        ivaTax: true,
-        iibbTax: true,
-        financingInterest: true,
-      },
-    }),
     prisma.category.findMany(),
-    prisma.transaction.count({ where: { ...userFilter, date: { gte: since, lte: until }, deletedAt: null } }),
+    prisma.transaction.count({ where: scopedTxPeriodFilter }),
   ]);
 
   const catMap = new Map(categories.map((c) => [c.id, c]));
 
-  const thisMonth = toMoneyNumber(thisMonthTx._sum.amountArs);
-  const lastMonth = toMoneyNumber(lastMonthTx._sum.amountArs);
-  const spendingChangePercent =
-    lastMonth === 0 ? 0 : ((thisMonth - lastMonth) / lastMonth) * 100;
-
   const totalCatSpend = txByCategory.reduce((s, g) => s + toMoneyNumber(g._sum.amountArs), 0);
-  const totalPeriodSpendingUsd = txForTrend.reduce((s, t) => s + toMoneyNumber(t.amountUsd), 0);
+  const totalIncomeArs = toMoneyNumber(incomeAgg._sum.amountArs);
+  const totalExpenseArs = toMoneyNumber(expenseAgg._sum.amountArs);
+  const totalIncomeUsd = toMoneyNumber(incomeAgg._sum.amountUsd);
+  const totalExpenseUsd = toMoneyNumber(expenseAgg._sum.amountUsd);
   const spendingByCategory = txByCategory.map((g) => {
     const cat = g.categoryId ? catMap.get(g.categoryId) : null;
     const total = toMoneyNumber(g._sum.amountArs);
@@ -95,12 +95,18 @@ export async function getDashboardSummary({
     };
   });
 
-  const monthlyMap = new Map<string, { totalSpending: number; totalSpendingUsd: number; transactionCount: number }>();
+  const monthlyMap = new Map<string, { income: number; expenses: number; netBalance: number; transactionCount: number }>();
   for (const t of txForTrend) {
     const key = `${t.date.getFullYear()}-${String(t.date.getMonth() + 1).padStart(2, "0")}`;
-    const existing = monthlyMap.get(key) ?? { totalSpending: 0, totalSpendingUsd: 0, transactionCount: 0 };
-    existing.totalSpending += toMoneyNumber(t.amountArs);
-    existing.totalSpendingUsd += toMoneyNumber(t.amountUsd);
+    const existing = monthlyMap.get(key) ?? { income: 0, expenses: 0, netBalance: 0, transactionCount: 0 };
+    const amount = toMoneyNumber(t.amountArs);
+    if (t.transactionType === "CREDIT") {
+      existing.income += amount;
+      existing.netBalance += amount;
+    } else {
+      existing.expenses += amount;
+      existing.netBalance -= amount;
+    }
     existing.transactionCount += 1;
     monthlyMap.set(key, existing);
   }
@@ -119,30 +125,23 @@ export async function getDashboardSummary({
     };
   });
 
-  const commissions = toMoneyNumber(feeAgg._sum.commissionCuentaFull);
-  const selloTax = toMoneyNumber(feeAgg._sum.selloTax);
-  const ivaTax = toMoneyNumber(feeAgg._sum.ivaTax);
-  const iibbTax = toMoneyNumber(feeAgg._sum.iibbTax);
-  const financingInterest = toMoneyNumber(feeAgg._sum.financingInterest);
-
   return {
     totalTransactionCount,
-    totalCurrentBalance: totalCatSpend,
-    totalCurrentBalanceUsd: totalPeriodSpendingUsd,
-    totalSpendingThisMonth: thisMonth,
-    totalSpendingLastMonth: lastMonth,
-    spendingChangePercent,
+    origin: origin ?? "all",
+    totalIncomeArs,
+    totalExpenseArs,
+    netBalanceArs: totalIncomeArs - totalExpenseArs,
+    totalIncomeUsd,
+    totalExpenseUsd,
+    netBalanceUsd: totalIncomeUsd - totalExpenseUsd,
     spendingByCategory,
     monthlyTrend,
     topMerchants,
-    feeBreakdown: {
-      commissions,
-      selloTax,
-      ivaTax,
-      iibbTax,
-      financingInterest,
-      total: commissions + selloTax + ivaTax + iibbTax + financingInterest,
-    },
+    totalCategorySpend: totalCatSpend,
+    cumulativeNetSavings: monthlyTrend.reduce((sum, item) => sum + item.netBalance, 0),
+    averageMonthlyNet: monthlyTrend.length
+      ? monthlyTrend.reduce((sum, item) => sum + item.netBalance, 0) / monthlyTrend.length
+      : 0,
   };
 }
 

@@ -174,7 +174,7 @@ export default function ReviewStatementsPage() {
                     </div>
                     <div>
                       <p className="text-xs text-zinc-400">Proveedor AI</p>
-                      <p className="text-zinc-800">{item.analysisProvider ?? "—"}</p>
+                      <p className="text-zinc-800">{item.analysisProvider ? "AI" : "—"}</p>
                     </div>
                     <div>
                       <p className="text-xs text-zinc-400">Confianza</p>

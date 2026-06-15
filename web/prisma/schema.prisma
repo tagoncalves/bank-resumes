@@ -16,9 +16,39 @@ model User {
   createdAt    DateTime @default(now())
 
   statements   Statement[]
+  payslips     Payslip[]
   transactions Transaction[]
   importJobs   ImportJob[]
   reviewedStatements Statement[] @relation("ReviewedStatements")
+}
+
+model Payslip {
+  id                   String   @id @default(cuid())
+  userId               String?
+  incomeTransactionId  String?  @unique
+  rawFilename          String
+  sourceHash           String   @unique
+  bankName             String?
+  employerName         String?
+  employeeName         String?
+  periodLabel          String?
+  payDate              DateTime?
+  netAmount            Decimal?
+  grossAmount          Decimal?
+  processingStatus     String   @default("COMPLETED") // "COMPLETED" | "REVIEW_REQUIRED"
+  analysisProvider     String?
+  analysisModel        String?
+  analysisPromptVersion String?
+  analysisConfidence   Float?
+  analysisNotes        String?
+  analysisStructuredJson String?
+  uploadedAt           DateTime @default(now())
+
+  user              User?        @relation(fields: [userId], references: [id])
+  incomeTransaction Transaction? @relation("PayslipIncomeTransaction", fields: [incomeTransactionId], references: [id])
+
+  @@index([userId])
+  @@index([uploadedAt])
 }
 
 model Bank {
@@ -173,6 +203,7 @@ model Transaction {
   statement Statement?  @relation(fields: [statementId], references: [id], onDelete: Cascade)
   user      User?       @relation(fields: [userId], references: [id])
   category  Category?   @relation(fields: [categoryId], references: [id])
+  payslip   Payslip?    @relation("PayslipIncomeTransaction")
 
   @@index([statementId])
   @@index([userId])

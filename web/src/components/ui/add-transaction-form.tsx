@@ -2,7 +2,8 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, X } from "lucide-react";
+import { Download, Plus, X } from "lucide-react";
+import { useToast } from "@/components/ui/toast-provider";
 
 type Category = { id: string; name: string };
 
@@ -40,8 +41,10 @@ export function AddTransactionForm({
   onPrefillConsumed?: () => void;
 } = {}) {
   const router = useRouter();
+  const { showToast } = useToast();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [form, setForm] = useState(EMPTY_FORM());
@@ -81,13 +84,14 @@ export function AddTransactionForm({
     setForm((f) => ({ ...f, [field]: value }));
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submitForm(mode: "close" | "continue") {
     setError(null);
+    setSaving(true);
 
     const amountArs = parseFloat(form.amountArs.replace(",", "."));
     if (!form.merchantName || isNaN(amountArs) || amountArs <= 0) {
       setError("Completá descripción e importe (debe ser mayor a 0).");
+      setSaving(false);
       return;
     }
 
@@ -96,6 +100,7 @@ export function AddTransactionForm({
       const tot = parseInt(form.installmentTotal, 10);
       if (isNaN(cur) || isNaN(tot) || cur < 1 || tot < 2 || cur > tot) {
         setError("Cuotas inválidas: la cuota actual debe ser ≤ al total.");
+        setSaving(false);
         return;
       }
     }
@@ -120,26 +125,38 @@ export function AddTransactionForm({
 
     if (!res.ok) {
       setError("Error al guardar el movimiento.");
+      setSaving(false);
       return;
     }
 
-    setForm({
-      date: new Date().toISOString().slice(0, 10),
-      merchantName: "",
-      amountArs: "",
-      amountUsd: "",
-      categoryId: "",
-      transactionType: "DEBIT",
-      isInstallment: false,
-      installmentCurrent: "1",
-      installmentTotal: "2",
+    showToast({
+      tone: "success",
+      title: "Movimiento guardado",
+      description: mode === "continue" ? "Podés seguir cargando más movimientos." : undefined,
     });
-    setOpen(false);
+
+    setForm({
+      ...EMPTY_FORM(),
+      transactionType: form.transactionType,
+    });
+
     if (onSaved) {
       onSaved();
     } else {
       startTransition(() => router.refresh());
     }
+
+    if (mode === "close") {
+      setOpen(false);
+      onPrefillConsumed?.();
+    }
+
+    setSaving(false);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await submitForm("close");
   }
 
   if (!open) {
@@ -154,14 +171,25 @@ export function AddTransactionForm({
   }
 
   return (
-    <div className="rounded-lg border border-indigo-100 bg-indigo-50/40 p-4">
-      <form onSubmit={handleSubmit}>
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-sm font-medium text-zinc-700">Nuevo movimiento</p>
-          <button type="button" onClick={handleClose} className="text-zinc-400 hover:text-zinc-600">
-            <X className="h-4 w-4" />
-          </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-3xl rounded-xl border border-zinc-200 bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4">
+          <p className="text-sm font-semibold text-zinc-800">Nuevo movimiento</p>
+          <div className="flex items-center gap-2">
+            <a
+              href="/api/transactions/template"
+              className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-700 hover:bg-zinc-50"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Descargar plantilla XLSX
+            </a>
+            <button type="button" onClick={handleClose} className="text-zinc-400 hover:text-zinc-600">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
+
+        <form onSubmit={handleSubmit} className="p-5">
 
         {/* Type toggle */}
         <div className="mb-3 flex gap-2">
@@ -292,7 +320,7 @@ export function AddTransactionForm({
 
         {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
 
-        <div className="mt-3 flex justify-end gap-2">
+        <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"
             onClick={handleClose}
@@ -301,14 +329,23 @@ export function AddTransactionForm({
             Cancelar
           </button>
           <button
+            type="button"
+            onClick={() => void submitForm("continue")}
+            disabled={saving || pending}
+            className="rounded border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+          >
+            {saving || pending ? "Guardando..." : "Guardar y cargar otro"}
+          </button>
+          <button
             type="submit"
-            disabled={pending}
+            disabled={saving || pending}
             className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
           >
-            {pending ? "Guardando..." : "Guardar"}
+            {saving || pending ? "Guardando..." : "Guardar"}
           </button>
         </div>
-      </form>
+        </form>
+      </div>
     </div>
   );
 }

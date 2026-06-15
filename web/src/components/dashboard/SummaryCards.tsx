@@ -2,72 +2,53 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { formatARS, formatUSD } from "@/lib/formatters";
-import { TrendingUp, TrendingDown, CreditCard, DollarSign, AlertCircle } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Scale, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SummaryCardsProps {
-  totalCurrentBalance: number;
-  totalCurrentBalanceUsd: number;
-  totalSpendingThisMonth: number;
-  totalSpendingLastMonth: number;
-  spendingChangePercent: number;
-  totalFees: number;
+  totalIncomeArs: number;
+  totalExpenseArs: number;
+  netBalanceArs: number;
+  netBalanceUsd: number;
   periodLabel: string;
-  isMonthFilter: boolean;
 }
 
 export default function SummaryCards({
-  totalCurrentBalance,
-  totalCurrentBalanceUsd,
-  totalSpendingThisMonth,
-  totalSpendingLastMonth,
-  spendingChangePercent,
-  totalFees,
+  totalIncomeArs,
+  totalExpenseArs,
+  netBalanceArs,
+  netBalanceUsd,
   periodLabel,
-  isMonthFilter,
 }: SummaryCardsProps) {
-  const isUp = spendingChangePercent > 0;
-
   return (
     <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
       <MetricCard
-        label="Gastos del período ARS"
-        value={formatARS(totalCurrentBalance)}
-        icon={<CreditCard className="h-4 w-4 text-indigo-600" />}
+        label="Ingresos del período"
+        value={formatARS(totalIncomeArs)}
+        icon={<ArrowUpCircle className="h-4 w-4 text-emerald-600" />}
         sub={periodLabel}
-        valueClass="text-zinc-900"
+        valueClass="text-emerald-600"
       />
       <MetricCard
-        label="Gastos del período USD"
-        value={formatUSD(totalCurrentBalanceUsd)}
-        icon={<DollarSign className="h-4 w-4 text-emerald-600" />}
+        label="Egresos del período"
+        value={formatARS(totalExpenseArs)}
+        icon={<ArrowDownCircle className="h-4 w-4 text-red-600" />}
         sub={periodLabel}
-        valueClass="text-zinc-900"
+        valueClass="text-red-600"
       />
       <MetricCard
-        label={isMonthFilter ? "Gastos del mes" : "Gastos este mes"}
-        value={formatARS(totalSpendingThisMonth)}
-        icon={
-          isUp ? (
-            <TrendingUp className="h-4 w-4 text-red-500" />
-          ) : (
-            <TrendingDown className="h-4 w-4 text-emerald-500" />
-          )
-        }
-        sub={
-          <span className={cn("text-xs", isUp ? "text-red-500" : "text-emerald-600")}>
-            {isUp ? "+" : ""}
-            {spendingChangePercent.toFixed(1)}% vs mes anterior ({formatARS(totalSpendingLastMonth)})
-          </span>
-        }
-        valueClass={cn(isUp ? "text-red-600" : "text-zinc-900")}
+        label="Balance neto ARS"
+        value={formatARS(netBalanceArs)}
+        icon={<Scale className="h-4 w-4 text-indigo-600" />}
+        sub={periodLabel}
+        valueClass={cn(netBalanceArs >= 0 ? "text-zinc-900" : "text-red-600")}
       />
       <MetricCard
-        label="Comisiones e impuestos"
-        value={formatARS(totalFees)}
-        icon={<AlertCircle className="h-4 w-4 text-amber-500" />}
+        label="Balance neto USD"
+        value={formatUSD(netBalanceUsd)}
+        icon={<Wallet className="h-4 w-4 text-sky-600" />}
         sub={periodLabel}
-        valueClass="text-amber-600"
+        valueClass={cn(netBalanceUsd >= 0 ? "text-zinc-900" : "text-red-600")}
       />
     </div>
   );

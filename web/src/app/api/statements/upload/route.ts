@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.DEEPSEEK_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: "Banco no reconocido por el parser nativo y DeepSeek no está configurado. Definí DEEPSEEK_API_KEY para habilitar el mapeo asistido por AI." },
+        { error: "Banco no reconocido por el parser nativo y AI no está configurada. Definí DEEPSEEK_API_KEY para habilitar el mapeo asistido por AI." },
         { status: 422 }
       );
     }

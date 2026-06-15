@@ -13,6 +13,8 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(100, parseInt(searchParams.get("limit") ?? "50", 10));
   const search = searchParams.get("search");
   const categoryId = searchParams.get("categoryId");
+  const origin = searchParams.get("origin");
+  const type = searchParams.get("type");
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
   const bankName = searchParams.get("bankName");
@@ -48,6 +50,24 @@ export async function GET(req: NextRequest) {
   if (bankName) {
     where.statement = { bankName };
   }
+  if (origin) {
+    const origins = origin.split(",").filter(Boolean);
+    const originClauses: Prisma.TransactionWhereInput[] = [];
+    if (origins.includes("manual")) originClauses.push({ source: "MANUAL" });
+    if (origins.includes("statement")) originClauses.push({ statementId: { not: null } });
+    if (origins.includes("payslip")) originClauses.push({ payslip: { isNot: null } });
+    if (originClauses.length) {
+      where.AND = [...((where.AND as Prisma.TransactionWhereInput[] | undefined) ?? []), { OR: originClauses }];
+    }
+  }
+  if (type) {
+    const types = type.split(",").filter(Boolean);
+    if (types.length === 1) {
+      where.transactionType = types[0];
+    } else if (types.length > 1) {
+      where.transactionType = { in: types };
+    }
+  }
 
   const [total, transactions, debitSum, creditSum] = await Promise.all([
     prisma.transaction.count({ where }),
@@ -59,6 +79,7 @@ export async function GET(req: NextRequest) {
       include: {
         category: true,
         statement: { select: { bankName: true, periodEnd: true } },
+        payslip: { select: { employerName: true, periodLabel: true } },
       },
     }),
     prisma.transaction.aggregate({

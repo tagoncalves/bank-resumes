@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import {
   BarChart,
   Bar,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -15,7 +16,9 @@ import { compactARS, formatARS } from "@/lib/formatters";
 
 interface MonthData {
   month: string;
-  totalSpending: number;
+  income: number;
+  expenses: number;
+  netBalance: number;
   transactionCount: number;
 }
 
@@ -26,7 +29,7 @@ export default function MonthlyTrend({ data }: { data: MonthData[] }) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-medium text-zinc-700">Tendencia mensual</CardTitle>
+          <CardTitle className="text-sm font-medium text-zinc-700">Balance mensual</CardTitle>
         </CardHeader>
         <CardContent className="flex h-52 items-center justify-center text-sm text-zinc-400">
           Sin datos
@@ -39,10 +42,15 @@ export default function MonthlyTrend({ data }: { data: MonthData[] }) {
     ...d,
     label: new Date(d.month + "-01").toLocaleDateString("es-AR", { month: "short", year: "2-digit" }),
   }));
+  let runningBalance = 0;
+  const withRunningBalance = formatted.map((item) => {
+    runningBalance += item.netBalance;
+    return { ...item, cumulativeNetBalance: runningBalance };
+  });
 
   function handleBarClick(entry: { month?: string }) {
     if (!entry?.month) return;
-    router.push(`/transactions?month=${entry.month}`);
+    router.push(`/dashboard?month=${entry.month}`);
   }
 
   function extractPayload(event: unknown): { month?: string } | null {
@@ -55,12 +63,12 @@ export default function MonthlyTrend({ data }: { data: MonthData[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm font-medium text-zinc-700">Tendencia mensual (ARS)</CardTitle>
+        <CardTitle className="text-sm font-medium text-zinc-700">Balance mensual (ARS)</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={240}>
           <BarChart
-            data={formatted}
+            data={withRunningBalance}
             margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
             onClick={(e) => {
               const payload = extractPayload(e);
@@ -75,14 +83,18 @@ export default function MonthlyTrend({ data }: { data: MonthData[] }) {
               width={60}
             />
             <Tooltip
-              formatter={(value) => [formatARS(Number(value)), "Gastos"]}
+              formatter={(value, _name, item) => {
+                const payload = item?.payload as MonthData | undefined;
+                return [formatARS(Number(value)), payload ? `Ingresos ${formatARS(payload.income)} · Egresos ${formatARS(payload.expenses)}` : "Balance"];
+              }}
               contentStyle={{ fontSize: 12, borderColor: "#e4e4e7" }}
               cursor={{ fill: "#e0e7ff", opacity: 0.5 }}
             />
-            <Bar dataKey="totalSpending" fill="#6366f1" radius={[3, 3, 0, 0]} cursor="pointer" />
+            <Bar dataKey="netBalance" fill="#6366f1" radius={[3, 3, 0, 0]} cursor="pointer" />
+            <Line type="monotone" dataKey="cumulativeNetBalance" stroke="#10B981" strokeWidth={2} dot={false} />
           </BarChart>
         </ResponsiveContainer>
-        <p className="mt-2 text-center text-[10px] text-zinc-400">Clic en una barra para ver movimientos del mes</p>
+        <p className="mt-2 text-center text-[10px] text-zinc-400">Clic en una barra para filtrar el dashboard por mes</p>
       </CardContent>
     </Card>
   );

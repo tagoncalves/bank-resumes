@@ -85,7 +85,7 @@ export default async function StatementDetailPage({ params }: { params: Promise<
           {data.analysisNotes && (
             <div className={`mt-4 rounded-md px-4 py-3 text-xs ${data.processingStatus === "REVIEW_REQUIRED" ? "bg-amber-50 text-amber-800" : "bg-violet-50 text-violet-800"}`}>
               <p className="font-medium">
-                {data.analysisProvider ? `Análisis ${data.analysisProvider}` : "Análisis de importación"}
+                {data.analysisProvider ? "Análisis AI" : "Análisis de importación"}
                 {typeof data.analysisConfidence === "number" ? ` · confianza ${(data.analysisConfidence * 100).toFixed(0)}%` : ""}
               </p>
               <p className="mt-1 whitespace-pre-line">{data.analysisNotes}</p>
