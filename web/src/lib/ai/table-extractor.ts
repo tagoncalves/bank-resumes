@@ -73,26 +73,49 @@ export function formatTableForPrompt(table: ExtractedTable): string {
   ].join("\n");
 }
 
+function normalizeText(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // remove accents
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ") // punctuation -> space
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractSignificantWords(text: string): string[] {
+  return normalizeText(text)
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !/^\d+$/.test(w));
+}
+
 export function validateExtractedValues(
   values: Record<string, string | number | undefined | null>,
   pdfText: string,
 ): string[] {
   const errors: string[] = [];
-  const textUpper = pdfText.toUpperCase();
+  const normalizedPdf = normalizeText(pdfText);
 
   for (const [field, value] of Object.entries(values)) {
     if (value == null || value === "") continue;
     const strValue = String(value);
-    // Skip numeric-only values (these are usually valid even if formatting differs)
-    if (/^\d+(\.\d+)?$/.test(strValue)) continue;
 
-    // Check if the value (or a close variant) appears in the PDF text
-    if (!textUpper.includes(strValue.toUpperCase())) {
-      // Try without currency symbols
-      const clean = strValue.replace(/[$ARS\s]/g, "").toUpperCase();
-      if (clean.length > 2 && !textUpper.includes(clean)) {
-        errors.push(`"${field}" = "${strValue}" no se encontró textualmente en el PDF`);
-      }
+    // Skip pure numeric values (amounts are validated structurally, not textually)
+    if (/^-?\d+(\.\d+)?$/.test(strValue)) continue;
+
+    const significantWords = extractSignificantWords(strValue);
+    if (significantWords.length === 0) continue;
+
+    // Check that at least half of the significant words appear in PDF
+    const wordsFound = significantWords.filter((w) =>
+      normalizedPdf.includes(w),
+    );
+    const ratio = wordsFound.length / significantWords.length;
+
+    if (ratio < 0.5) {
+      errors.push(
+        `"${field}" = "${strValue}" (solo ${wordsFound.length}/${significantWords.length} palabras significativas encontradas en el PDF)`,
+      );
     }
   }
 

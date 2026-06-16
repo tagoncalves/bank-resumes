@@ -16,7 +16,23 @@ export async function extractPdfText(buffer: Buffer): Promise<string> {
   const pdfParse = mod.default ?? mod;
 
   const pdf = await pdfParse(buffer);
-  return pdf.text as string;
+  const text = (pdf.text as string)?.trim() ?? "";
+
+  // If pdf-parse returned meaningful text, use it
+  if (text.length > 50) {
+    return text;
+  }
+
+  // Fall back to OCR for image-based/scanned PDFs
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { ocrPdf } = require("../ocr");
+    const ocrText = await ocrPdf(buffer);
+    return ocrText;
+  } catch {
+    // If OCR also fails, return whatever pdf-parse gave us
+    return text || "No se pudo extraer texto del PDF";
+  }
 }
 
 export async function parseStatementBuffer(buffer: Buffer): Promise<ParsedStatement> {
