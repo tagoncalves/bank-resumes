@@ -6,9 +6,20 @@ import { getSession } from "@/lib/auth";
 import { money, toMoneyNumber } from "@/lib/money";
 import { extractPdfText } from "@/lib/pdf-parser";
 import { parsePayslipBuffer } from "@/lib/payslip-parser";
+import { ocrImage } from "@/lib/ocr";
 import { enforceRateLimit, getClientIp } from "@/lib/rate-limit";
 import { savePendingPayslipPdf, savePayslipPdf } from "@/lib/statement-pdf";
 import { createAiParserFromAnalysis, findMatchingAiParsers } from "@/lib/ai/parser-generator";
+import { isPdfFilename } from "@/lib/parser-training/source-pdf";
+
+const SUPPORTED_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+
+function isSupportedPayslipFile(file: File) {
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".pdf")) return true;
+  if (name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".webp")) return true;
+  return SUPPORTED_IMAGE_TYPES.has(file.type);
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,8 +44,8 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
 
-    if (!file || !file.name.toLowerCase().endsWith(".pdf")) {
-      return NextResponse.json({ error: "Se requiere un archivo PDF" }, { status: 400 });
+    if (!file || !isSupportedPayslipFile(file)) {
+      return NextResponse.json({ error: "Se requiere un archivo PDF o imagen (PNG/JPG/WEBP)" }, { status: 400 });
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
@@ -51,6 +62,8 @@ export async function POST(req: NextRequest) {
         { status: 409 }
       );
     }
+
+    const isPdf = isPdfFilename(file.name);
 
     let mappedPayslip:
       | {
@@ -71,6 +84,10 @@ export async function POST(req: NextRequest) {
         };
 
     try {
+      if (!isPdf) {
+        throw new Error("Native PDF parser not applicable");
+      }
+
       const parsed = await parsePayslipBuffer(buffer);
       mappedPayslip = {
         employerName: parsed.employerName,
@@ -89,10 +106,10 @@ export async function POST(req: NextRequest) {
         analysisStructuredJson: null,
       };
     } catch {
-      const pdfText = await extractPdfText(buffer);
+      const extractedText = isPdf ? await extractPdfText(buffer) : await ocrImage(buffer);
 
       // Try matching AI-generated parsers first
-      const matches = await findMatchingAiParsers(pdfText, "PAYSLIP");
+      const matches = await findMatchingAiParsers(extractedText, "PAYSLIP");
       if (matches.length > 0) {
         const queuedPayslip = await prisma.payslip.create({
           data: {
@@ -103,7 +120,7 @@ export async function POST(req: NextRequest) {
             ...(session?.userId ? { user: { connect: { id: session.userId } } } : {}),
           },
         });
-        savePendingPayslipPdf(queuedPayslip.id, buffer);
+        savePendingPayslipPdf(queuedPayslip.id, buffer, file.name);
         return NextResponse.json(
           {
             payslipId: queuedPayslip.id,
@@ -116,13 +133,13 @@ export async function POST(req: NextRequest) {
       }
 
       try {
-        const analysis = await analyzePayslipWithDeepSeek(pdfText, file.name);
+          const analysis = await analyzePayslipWithDeepSeek(extractedText, file.name);
 
         // Generate parser from successful analysis
         await createAiParserFromAnalysis({
           sourceType: "PAYSLIP",
-          pdfText,
-          rawFilename: file.name,
+            pdfText: extractedText,
+            rawFilename: file.name,
           employerName: analysis.payslip.employer_name,
           parserFields: analysis.parserFields,
         });
@@ -160,7 +177,7 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        savePendingPayslipPdf(queuedPayslip.id, buffer);
+        savePendingPayslipPdf(queuedPayslip.id, buffer, file.name);
 
         return NextResponse.json(
           {
@@ -234,7 +251,7 @@ export async function POST(req: NextRequest) {
       return { payslip, incomeTransactionId };
     });
 
-    savePayslipPdf(created.payslip.id, buffer);
+    savePayslipPdf(created.payslip.id, buffer, file.name);
 
     const responseData: Record<string, unknown> = {
       payslipId: created.payslip.id,

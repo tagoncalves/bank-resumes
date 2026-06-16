@@ -34,3 +34,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Generated pdfjs worker
+/public/pdf.worker.min.mjs
+/public/pdfjs/standard_fonts/

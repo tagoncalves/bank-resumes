@@ -444,13 +444,21 @@ const PayslipCard = ({ itemId }: { itemId: string }) => {
                   </>
                 )}
                 {!isPreliminary && (
-                  <button
-                    onClick={() => handleAction(p.id, "retry")}
-                    disabled={actionId === p.id}
-                    className="inline-flex items-center gap-1 rounded border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
-                  >
-                    <RefreshCcw className="h-3.5 w-3.5" /> Reintentar
-                  </button>
+                  <>
+                    <button
+                      onClick={() => handleAction(p.id, "retry")}
+                      disabled={actionId === p.id}
+                      className="inline-flex items-center gap-1 rounded border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+                    >
+                      <RefreshCcw className="h-3.5 w-3.5" /> Reintentar
+                    </button>
+                    <Link
+                      href={`/admin/ai-parsers/training/PAYSLIP/${p.id}`}
+                      className="inline-flex items-center gap-1 rounded border border-purple-300 bg-white px-3 py-1.5 text-xs text-purple-700 hover:bg-purple-50"
+                    >
+                      <Code className="h-3.5 w-3.5" /> Entrenar Parser
+                    </Link>
+                  </>
                 )}
                 <button
                   onClick={() => { if (confirm(`¿Eliminar el recibo "${p.rawFilename}"?`)) handleAction(p.id, "delete"); }}

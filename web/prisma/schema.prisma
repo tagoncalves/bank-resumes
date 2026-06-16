@@ -26,6 +26,7 @@ model User {
   aiBans AiBan[]
   aiBanPardons AiBan[] @relation("BanPardon")
   aiParserReviews AiParser[] @relation("AiParserReviewer")
+  parserTrainingAnchors ParserTrainingAnchor[]
 }
 
 model AiBan {
@@ -71,6 +72,7 @@ model Payslip {
   user              User?        @relation(fields: [userId], references: [id])
   incomeTransaction Transaction? @relation("PayslipIncomeTransaction", fields: [incomeTransactionId], references: [id])
   aiParsers         AiParser[]
+  parserTrainingAnchors ParserTrainingAnchor[]
 
   @@index([userId])
   @@index([uploadedAt])
@@ -142,6 +144,7 @@ model Statement {
   transactions   Transaction[]
   importJobs     ImportJob[]
   aiParsers      AiParser[]
+  parserTrainingAnchors ParserTrainingAnchor[]
 
   @@index([cardId, periodEnd])
   @@index([userId])
@@ -261,5 +264,38 @@ model AiParser {
 
   @@index([status])
   @@index([formatSignature])
+  parserTrainingAnchors ParserTrainingAnchor[]
+
   @@index([sourceType])
+}
+
+model ParserTrainingAnchor {
+  id            String   @id @default(cuid())
+  aiParserId    String?
+  payslipId     String?
+  statementId   String?
+  sourceType    String   // PAYSLIP | STATEMENT
+  fieldName     String
+  pageNumber    Int
+  x0            Float
+  top           Float
+  x1            Float
+  bottom        Float
+  mode          String   // region_exact | right_of_label | below_label | row_capture
+  rawText       String?
+  confirmedText String?
+  labelText     String?
+  trainedById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  aiParser  AiParser? @relation(fields: [aiParserId], references: [id], onDelete: Cascade)
+  payslip   Payslip?  @relation(fields: [payslipId], references: [id], onDelete: Cascade)
+  statement Statement? @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  trainedBy User?     @relation(fields: [trainedById], references: [id])
+
+  @@index([sourceType])
+  @@index([aiParserId])
+  @@index([payslipId])
+  @@index([statementId])
 }

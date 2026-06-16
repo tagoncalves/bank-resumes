@@ -6,8 +6,10 @@ import { analyzeWithRetry } from "@/lib/ai/retry";
 import { extractPdfText } from "@/lib/pdf-parser";
 import { parsePayslipBuffer } from "@/lib/payslip-parser";
 import { money } from "@/lib/money";
+import { ocrImage } from "@/lib/ocr";
 import { createAiParserFromAnalysis, deleteAiParsersForSource } from "@/lib/ai/parser-generator";
-import { savePayslipPdf } from "@/lib/statement-pdf";
+import { readPayslipPdf as readStoredPayslipFile, savePayslipPdf } from "@/lib/statement-pdf";
+import { isPdfFilename } from "@/lib/parser-training/source-pdf";
 import fs from "fs";
 import path from "path";
 
@@ -27,6 +29,18 @@ function readPayslipPdf(id: string): Buffer {
     if (fs.existsSync(filePath)) return fs.readFileSync(filePath);
   }
   throw new Error("PDF no encontrado para este recibo");
+}
+
+function deletePayslipFiles(id: string) {
+  const extensions = [".pdf", ".png", ".jpg", ".jpeg", ".webp"];
+  for (const dir of [PAYSLIP_DIR, PENDING_DIR]) {
+    for (const ext of extensions) {
+      const filePath = path.join(dir, `${id}${ext}`);
+      if (fs.existsSync(filePath)) {
+        try { fs.unlinkSync(filePath); } catch { /* ignore */ }
+      }
+    }
+  }
 }
 
 async function createIncomeTransaction(
@@ -159,11 +173,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     // Process inline
     try {
-      const buffer = readPayslipPdf(id);
+      const buffer = readStoredPayslipFile(id, payslip.rawFilename);
       let pdfText: string;
 
       // Try native parser
       try {
+        if (!isPdfFilename(payslip.rawFilename)) {
+          throw new Error("Native PDF parser not applicable");
+        }
         const parsed = await parsePayslipBuffer(buffer);
         const tx = await createIncomeTransaction(
           parsed.employerName,
@@ -187,13 +204,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           },
         });
 
-        savePayslipPdf(id, buffer);
+        savePayslipPdf(id, buffer, payslip.rawFilename);
         return NextResponse.json({ success: true, processingStatus: "COMPLETED", method: "native" });
       } catch {
         // Native failed — try AI
       }
 
-      pdfText = await extractPdfText(buffer);
+      pdfText = isPdfFilename(payslip.rawFilename) ? await extractPdfText(buffer) : await ocrImage(buffer);
 
       if (!process.env.DEEPSEEK_API_KEY) {
         await prisma.payslip.update({
@@ -242,7 +259,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         parserFields: analysis.parserFields,
       });
 
-      savePayslipPdf(id, buffer);
+      savePayslipPdf(id, buffer, payslip.rawFilename);
       return NextResponse.json({ success: true, processingStatus, method: "ai" });
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Error al reprocesar";
@@ -265,12 +282,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       prisma.payslip.delete({ where: { id } }),
     ]);
 
-    for (const dir of [PAYSLIP_DIR, PENDING_DIR]) {
-      const filePath = path.join(dir, `${id}.pdf`);
-      if (fs.existsSync(filePath)) {
-        try { fs.unlinkSync(filePath); } catch { /* ignore */ }
-      }
-    }
+    deletePayslipFiles(id);
 
     return NextResponse.json({ success: true });
   }

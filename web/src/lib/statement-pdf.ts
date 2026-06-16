@@ -6,6 +6,43 @@ const IMPORT_JOB_UPLOADS_DIR = path.join(process.cwd(), "uploads", "import-jobs"
 const PAYSLIP_UPLOADS_DIR = path.join(process.cwd(), "uploads", "payslips");
 const PENDING_PAYSLIP_UPLOADS_DIR = path.join(PAYSLIP_UPLOADS_DIR, "pending");
 
+const SUPPORTED_PAYSLIP_EXTENSIONS = [".pdf", ".png", ".jpg", ".jpeg", ".webp"] as const;
+
+function getPayslipStoredExtension(rawFilename?: string | null) {
+  const ext = path.extname(rawFilename ?? "").toLowerCase();
+  return SUPPORTED_PAYSLIP_EXTENSIONS.includes(ext as (typeof SUPPORTED_PAYSLIP_EXTENSIONS)[number]) ? ext : ".pdf";
+}
+
+function findPayslipFile(baseDir: string, payslipId: string, rawFilename?: string | null): string | null {
+  const preferred = path.join(baseDir, `${payslipId}${getPayslipStoredExtension(rawFilename)}`);
+  if (fs.existsSync(preferred)) {
+    return preferred;
+  }
+
+  for (const ext of SUPPORTED_PAYSLIP_EXTENSIONS) {
+    const candidate = path.join(baseDir, `${payslipId}${ext}`);
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+export function getPayslipContentType(rawFilename?: string | null) {
+  switch (getPayslipStoredExtension(rawFilename)) {
+    case ".png":
+      return "image/png";
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".webp":
+      return "image/webp";
+    default:
+      return "application/pdf";
+  }
+}
+
 export function saveStatementPdf(statementId: string, buffer: Buffer) {
   try {
     fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -44,22 +81,22 @@ export function readImportJobPdf(jobId: string): Buffer {
   return fs.readFileSync(filePath);
 }
 
-export function savePayslipPdf(payslipId: string, buffer: Buffer) {
+export function savePayslipPdf(payslipId: string, buffer: Buffer, rawFilename?: string | null) {
   try {
     fs.mkdirSync(PAYSLIP_UPLOADS_DIR, { recursive: true });
-    fs.writeFileSync(path.join(PAYSLIP_UPLOADS_DIR, `${payslipId}.pdf`), buffer);
+    fs.writeFileSync(path.join(PAYSLIP_UPLOADS_DIR, `${payslipId}${getPayslipStoredExtension(rawFilename)}`), buffer);
   } catch {
     // non-fatal
   }
 }
 
-export function readPayslipPdf(payslipId: string): Buffer {
-  const filePath = path.join(PAYSLIP_UPLOADS_DIR, `${payslipId}.pdf`);
-  const pendingFilePath = path.join(PENDING_PAYSLIP_UPLOADS_DIR, `${payslipId}.pdf`);
+export function readPayslipPdf(payslipId: string, rawFilename?: string | null): Buffer {
+  const filePath = findPayslipFile(PAYSLIP_UPLOADS_DIR, payslipId, rawFilename);
+  const pendingFilePath = findPayslipFile(PENDING_PAYSLIP_UPLOADS_DIR, payslipId, rawFilename);
 
-  if (!fs.existsSync(filePath)) {
-    if (!fs.existsSync(pendingFilePath)) {
-      throw new Error("PDF no disponible para el recibo");
+  if (!filePath) {
+    if (!pendingFilePath) {
+      throw new Error("Archivo no disponible para el recibo");
     }
 
     return fs.readFileSync(pendingFilePath);
@@ -68,20 +105,20 @@ export function readPayslipPdf(payslipId: string): Buffer {
   return fs.readFileSync(filePath);
 }
 
-export function savePendingPayslipPdf(payslipId: string, buffer: Buffer) {
+export function savePendingPayslipPdf(payslipId: string, buffer: Buffer, rawFilename?: string | null) {
   try {
     fs.mkdirSync(PENDING_PAYSLIP_UPLOADS_DIR, { recursive: true });
-    fs.writeFileSync(path.join(PENDING_PAYSLIP_UPLOADS_DIR, `${payslipId}.pdf`), buffer);
+    fs.writeFileSync(path.join(PENDING_PAYSLIP_UPLOADS_DIR, `${payslipId}${getPayslipStoredExtension(rawFilename)}`), buffer);
   } catch {
     // non-fatal
   }
 }
 
-export function readPendingPayslipPdf(payslipId: string): Buffer {
-  const filePath = path.join(PENDING_PAYSLIP_UPLOADS_DIR, `${payslipId}.pdf`);
+export function readPendingPayslipPdf(payslipId: string, rawFilename?: string | null): Buffer {
+  const filePath = findPayslipFile(PENDING_PAYSLIP_UPLOADS_DIR, payslipId, rawFilename);
 
-  if (!fs.existsSync(filePath)) {
-    throw new Error("PDF pendiente no disponible para el recibo");
+  if (!filePath) {
+    throw new Error("Archivo pendiente no disponible para el recibo");
   }
 
   return fs.readFileSync(filePath);

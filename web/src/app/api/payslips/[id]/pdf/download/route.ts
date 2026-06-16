@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { readPayslipPdf } from "@/lib/statement-pdf";
+import { getPayslipContentType, readPayslipPdf } from "@/lib/statement-pdf";
 
 export async function GET(
   _req: NextRequest,
@@ -28,14 +28,14 @@ export async function GET(
   }
 
   try {
-    const buffer = readPayslipPdf(id);
+    const buffer = readPayslipPdf(id, payslip.rawFilename);
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
-        "Content-Type": "application/pdf",
+        "Content-Type": getPayslipContentType(payslip.rawFilename),
         "Content-Disposition": `attachment; filename="${payslip.rawFilename}"`,
       },
     });
   } catch {
-    return NextResponse.json({ error: "PDF no disponible" }, { status: 404 });
+    return NextResponse.json({ error: "Archivo no disponible" }, { status: 404 });
   }
 }

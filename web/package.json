@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "prisma generate",
+    "postinstall": "prisma generate && node -e \"const fs=require('fs');const path=require('path');try{fs.mkdirSync('public',{recursive:true});fs.mkdirSync(path.join('public','pdfjs','standard_fonts'),{recursive:true});fs.copyFileSync(require.resolve('pdfjs-dist/build/pdf.worker.min.mjs'),'public/pdf.worker.min.mjs');const fontsDir=path.dirname(require.resolve('pdfjs-dist/standard_fonts/FoxitDingbats.pfb'));for(const file of fs.readdirSync(fontsDir)){fs.copyFileSync(path.join(fontsDir,file),path.join('public','pdfjs','standard_fonts',file));}}catch(e){}\"",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio"

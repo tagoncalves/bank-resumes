@@ -3,8 +3,10 @@ import { analyzePayslipWithDeepSeek } from "@/lib/ai/deepseek";
 import { analyzeWithRetry } from "@/lib/ai/retry";
 import { extractPdfText } from "@/lib/pdf-parser";
 import { money } from "@/lib/money";
+import { ocrImage } from "@/lib/ocr";
 import { readPendingPayslipPdf } from "@/lib/statement-pdf";
 import { createAiParserFromAnalysis } from "@/lib/ai/parser-generator";
+import { isPdfFilename } from "@/lib/parser-training/source-pdf";
 
 function aiConfigured() {
   return !!process.env.DEEPSEEK_API_KEY;
@@ -44,8 +46,10 @@ export async function processNextQueuedPayslip() {
   }
 
   try {
-    const pdfBuffer = readPendingPayslipPdf(nextPayslip.id);
-    const pdfText = await extractPdfText(pdfBuffer);
+    const pdfBuffer = readPendingPayslipPdf(nextPayslip.id, nextPayslip.rawFilename);
+    const pdfText = isPdfFilename(nextPayslip.rawFilename)
+      ? await extractPdfText(pdfBuffer)
+      : await ocrImage(pdfBuffer);
 
     const { result: analysis, attempts, errors } = await analyzeWithRetry(
       (previousErrors) => analyzePayslipWithDeepSeek(pdfText, nextPayslip.rawFilename, previousErrors),
