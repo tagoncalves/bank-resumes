@@ -1,6 +1,8 @@
 export interface SendNotificationInput {
   recipient: string;
   from?: string | null;
+  provider?: string | null;
+  apiKeyEnv?: string | null;
   subject?: string | null;
   body: string;
   bodyFormat: string;

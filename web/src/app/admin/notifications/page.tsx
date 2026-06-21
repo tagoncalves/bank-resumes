@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Mail, Play } from "lucide-react";
+import { Bell, Mail, Play, Send } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmailTemplateEditor } from "@/components/admin/notifications/email-template-editor";
 
@@ -24,12 +24,12 @@ export default function NotificationsAdminPage() {
   const [editingTemplate, setEditingTemplate] = useState<TemplateItem | null>(null);
   const [templateEditMode, setTemplateEditMode] = useState<"visual" | "code">("visual");
   const [editingChannel, setEditingChannel] = useState<ChannelItem | null>(null);
-  const [channelConfig, setChannelConfig] = useState({ from: "", defaultRecipient: "" });
+  const [channelConfig, setChannelConfig] = useState({ provider: "console", from: "", defaultRecipient: "", apiKeyEnv: "RESEND_API_KEY" });
   const [error, setError] = useState<string | null>(null);
 
   function parseChannelConfig(channel: ChannelItem) {
     try {
-      return channel.configJson ? JSON.parse(channel.configJson) as { from?: string; defaultRecipient?: string } : {};
+      return channel.configJson ? JSON.parse(channel.configJson) as { provider?: string; from?: string; defaultRecipient?: string; apiKeyEnv?: string } : {};
     } catch {
       return {};
     }
@@ -86,7 +86,12 @@ export default function NotificationsAdminPage() {
   function startEditChannel(channel: ChannelItem) {
     const config = parseChannelConfig(channel);
     setEditingChannel(channel);
-    setChannelConfig({ from: config.from ?? "", defaultRecipient: config.defaultRecipient ?? "" });
+    setChannelConfig({
+      provider: config.provider ?? "console",
+      from: config.from ?? "",
+      defaultRecipient: config.defaultRecipient ?? "",
+      apiKeyEnv: config.apiKeyEnv ?? "RESEND_API_KEY",
+    });
   }
 
   async function saveChannel() {
@@ -100,6 +105,15 @@ export default function NotificationsAdminPage() {
       }),
     });
     setEditingChannel(null);
+    load();
+  }
+
+  async function resendDelivery(deliveryId: string) {
+    await fetch("/api/admin/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "resend", deliveryId }),
+    });
     load();
   }
 
@@ -143,8 +157,10 @@ export default function NotificationsAdminPage() {
               </div>
               </div>
               <div className="mt-2 grid gap-2 text-xs text-zinc-500 sm:grid-cols-2">
+                <p>Proveedor: <span className="font-mono text-zinc-700">{config.provider || "console"}</span></p>
                 <p>Remitente: <span className="font-mono text-zinc-700">{config.from || "No configurado"}</span></p>
                 <p>Destinatario default: <span className="font-mono text-zinc-700">{config.defaultRecipient || "Usuario / env"}</span></p>
+                <p>API key env: <span className="font-mono text-zinc-700">{config.apiKeyEnv || "RESEND_API_KEY"}</span></p>
               </div>
             </div>
             );
@@ -185,6 +201,7 @@ export default function NotificationsAdminPage() {
         onScopeChange={setSentScope}
         deliveries={sentDeliveries}
         empty="No hay envíos realizados para el período seleccionado."
+        onResend={resendDelivery}
       />
 
       <Card>
@@ -248,7 +265,16 @@ export default function NotificationsAdminPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
           <div className="w-full max-w-lg rounded bg-white p-5 shadow-xl">
             <h2 className="mb-1 text-sm font-semibold">Configurar {editingChannel.name}</h2>
-            <p className="mb-4 text-xs text-zinc-500">Para email usá direcciones. Para WhatsApp/Telegram, estos campos representan número/chat id cuando se agregue el carrier.</p>
+            <p className="mb-4 text-xs text-zinc-500">El envío se hace server-side. No usa mailto. En desarrollo podés usar consola; para envío real configurá Resend y una API key en variables de entorno.</p>
+            <label className="mb-1 block text-xs text-zinc-500">Proveedor</label>
+            <select
+              className="mb-3 w-full rounded border px-3 py-2 text-sm"
+              value={channelConfig.provider}
+              onChange={(e) => setChannelConfig((c) => ({ ...c, provider: e.target.value }))}
+            >
+              <option value="console">Consola (desarrollo, no envía mail real)</option>
+              <option value="resend">Resend</option>
+            </select>
             <label className="mb-1 block text-xs text-zinc-500">Remitente</label>
             <input
               className="mb-3 w-full rounded border px-3 py-2 text-sm"
@@ -263,6 +289,18 @@ export default function NotificationsAdminPage() {
               onChange={(e) => setChannelConfig((c) => ({ ...c, defaultRecipient: e.target.value }))}
               placeholder="admin@example.com o +549..."
             />
+            {channelConfig.provider === "resend" && (
+              <>
+                <label className="mb-1 mt-3 block text-xs text-zinc-500">Variable de entorno API key</label>
+                <input
+                  className="w-full rounded border px-3 py-2 text-sm font-mono"
+                  value={channelConfig.apiKeyEnv}
+                  onChange={(e) => setChannelConfig((c) => ({ ...c, apiKeyEnv: e.target.value }))}
+                  placeholder="RESEND_API_KEY"
+                />
+                <p className="mt-1 text-xs text-zinc-400">Por seguridad no se guarda el secreto en la base; agregá esa variable en `.env`.</p>
+              </>
+            )}
             <div className="mt-4 flex justify-end gap-2">
               <button onClick={() => setEditingChannel(null)} className="rounded px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100">Cancelar</button>
               <button onClick={saveChannel} className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700">Guardar</button>
@@ -280,12 +318,14 @@ function DeliveryList({
   onScopeChange,
   deliveries,
   empty,
+  onResend,
 }: {
   title: string;
   scope: Scope;
   onScopeChange: (scope: Scope) => void;
   deliveries: DeliveryItem[];
   empty: string;
+  onResend?: (deliveryId: string) => void;
 }) {
   return (
     <Card>
@@ -319,7 +359,19 @@ function DeliveryList({
               {d.lastError && <p className="mt-1 text-red-500">{d.lastError}</p>}
             </div>
             <div className="text-left sm:text-right">
-              <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${statusClass(d.status)}`}>{d.status}</span>
+              <div className="flex items-center gap-2 sm:justify-end">
+                <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${statusClass(d.status)}`}>{d.status}</span>
+                {onResend && d.status === "SENT" && (
+                  <button
+                    type="button"
+                    onClick={() => onResend(d.id)}
+                    title="Reenviar"
+                    className="rounded-full border border-indigo-100 p-1 text-indigo-600 hover:bg-indigo-50"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
               <p className="mt-1 text-zinc-400">{new Date(d.sentAt ?? d.createdAt).toLocaleString("es-AR")}</p>
             </div>
           </div>

@@ -59,11 +59,11 @@ export async function ensureDefaultNotificationSetup() {
 }
 
 function parseChannelConfig(configJson?: string | null) {
-  if (!configJson) return {} as { from?: string; defaultRecipient?: string };
+  if (!configJson) return {} as { from?: string; defaultRecipient?: string; provider?: string; apiKeyEnv?: string };
   try {
-    return JSON.parse(configJson) as { from?: string; defaultRecipient?: string };
+    return JSON.parse(configJson) as { from?: string; defaultRecipient?: string; provider?: string; apiKeyEnv?: string };
   } catch {
-    return {} as { from?: string; defaultRecipient?: string };
+    return {} as { from?: string; defaultRecipient?: string; provider?: string; apiKeyEnv?: string };
   }
 }
 
@@ -251,6 +251,8 @@ async function sendPendingDeliveries(now: Date) {
       const result = await carrier.send({
         recipient: delivery.recipient,
         from: parseChannelConfig(delivery.channel.configJson).from,
+        provider: parseChannelConfig(delivery.channel.configJson).provider,
+        apiKeyEnv: parseChannelConfig(delivery.channel.configJson).apiKeyEnv,
         subject: delivery.renderedSubject,
         body: delivery.renderedBody,
         bodyFormat: "HTML",

@@ -2,6 +2,16 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin";
 import { ensureDefaultNotificationSetup, processNotifications } from "@/lib/notifications/engine";
+import { EmailCarrier } from "@/lib/notifications/carriers/email";
+
+function parseChannelConfig(configJson?: string | null) {
+  if (!configJson) return {} as { provider?: string; from?: string; defaultRecipient?: string; apiKeyEnv?: string };
+  try {
+    return JSON.parse(configJson) as { provider?: string; from?: string; defaultRecipient?: string; apiKeyEnv?: string };
+  } catch {
+    return {} as { provider?: string; from?: string; defaultRecipient?: string; apiKeyEnv?: string };
+  }
+}
 
 function rangeFor(scope: string | null) {
   const now = new Date();
@@ -75,6 +85,64 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   if (body.action === "process") {
     return NextResponse.json(await processNotifications());
+  }
+
+  if (body.action === "resend" && body.deliveryId) {
+    const original = await prisma.notificationDelivery.findUnique({
+      where: { id: body.deliveryId },
+      include: { channel: true },
+    });
+    if (!original) return NextResponse.json({ error: "Envío no encontrado" }, { status: 404 });
+    if (original.channel.type !== "EMAIL") {
+      return NextResponse.json({ error: "Reenvío implementado solo para email en el MVP" }, { status: 400 });
+    }
+
+    const retry = await prisma.notificationDelivery.create({
+      data: {
+        eventId: original.eventId,
+        channelId: original.channelId,
+        recipient: original.recipient,
+        renderedSubject: original.renderedSubject,
+        renderedBody: original.renderedBody,
+        status: "PENDING",
+      },
+      include: { channel: true },
+    });
+
+    try {
+      const config = parseChannelConfig(retry.channel.configJson);
+      const result = await new EmailCarrier().send({
+        recipient: retry.recipient,
+        from: config.from,
+        provider: config.provider,
+        apiKeyEnv: config.apiKeyEnv,
+        subject: retry.renderedSubject,
+        body: retry.renderedBody,
+        bodyFormat: "HTML",
+      });
+
+      const updated = await prisma.notificationDelivery.update({
+        where: { id: retry.id },
+        data: {
+          status: "SENT",
+          sentAt: new Date(),
+          providerMessageId: result.providerMessageId ?? null,
+          attemptCount: 1,
+          lastError: null,
+        },
+      });
+      return NextResponse.json(updated);
+    } catch (error) {
+      const failed = await prisma.notificationDelivery.update({
+        where: { id: retry.id },
+        data: {
+          status: "FAILED",
+          attemptCount: 1,
+          lastError: error instanceof Error ? error.message : "Error al reenviar",
+        },
+      });
+      return NextResponse.json(failed, { status: 500 });
+    }
   }
 
   return NextResponse.json({ error: "Acción inválida" }, { status: 400 });

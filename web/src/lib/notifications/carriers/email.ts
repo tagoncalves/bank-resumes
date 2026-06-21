@@ -4,13 +4,19 @@ export class EmailCarrier implements NotificationCarrier {
   type = "EMAIL";
 
   async send(input: SendNotificationInput) {
-    const provider = process.env.EMAIL_PROVIDER ?? "console";
+    const provider = input.provider ?? process.env.EMAIL_PROVIDER ?? "console";
 
-    if (provider === "resend" && process.env.RESEND_API_KEY) {
+    if (provider === "resend") {
+      const apiKeyEnv = input.apiKeyEnv ?? "RESEND_API_KEY";
+      const apiKey = process.env[apiKeyEnv] ?? process.env.RESEND_API_KEY;
+      if (!apiKey) {
+        throw new Error(`Falta configurar ${apiKeyEnv} para enviar por Resend`);
+      }
+
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -28,6 +34,7 @@ export class EmailCarrier implements NotificationCarrier {
     }
 
     console.info("[notification:email]", {
+      provider,
       from: input.from ?? process.env.EMAIL_FROM ?? "Bank Resumes <no-reply@example.com>",
       to: input.recipient,
       subject: input.subject,
