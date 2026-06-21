@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, FileText, List, CreditCard, Users, LogOut, ShieldAlert, FileBadge2, Bot, Ban } from "lucide-react";
+import { LayoutDashboard, FileText, List, CreditCard, Users, LogOut, ShieldAlert, FileBadge2, Bot, Ban, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
@@ -104,6 +104,18 @@ export default function Sidebar() {
             >
               <Ban className={cn("h-4 w-4", pathname.startsWith("/admin/ai-bans") ? "text-indigo-600" : "text-zinc-400")} />
               Baneos AI
+            </Link>
+            <Link
+              href="/admin/notifications"
+              className={cn(
+                "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                pathname.startsWith("/admin/notifications")
+                  ? "bg-indigo-50 text-indigo-700"
+                  : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+              )}
+            >
+              <Bell className={cn("h-4 w-4", pathname.startsWith("/admin/notifications") ? "text-indigo-600" : "text-zinc-400")} />
+              Notificaciones
             </Link>
           </>
         )}

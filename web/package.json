@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
+    "@react-email/editor": "^1.5.7",
     "bcryptjs": "^3.0.3",
     "canvas": "^3.2.3",
     "class-variance-authority": "^0.7.1",

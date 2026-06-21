@@ -441,6 +441,13 @@ const PayslipCard = ({ itemId }: { itemId: string }) => {
                     >
                       <RefreshCcw className="h-3.5 w-3.5" /> Rechazar
                     </button>
+                    <button
+                      onClick={() => { if (confirm(`¿Eliminar el análisis AI de "${p.rawFilename}"?`)) handleAction(p.id, "clear-analysis"); }}
+                      disabled={actionId === p.id}
+                      className="inline-flex items-center gap-1 rounded border border-red-200 bg-white px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-60"
+                    >
+                      <X className="h-3.5 w-3.5" /> Limpiar análisis
+                    </button>
                   </>
                 )}
                 {!isPreliminary && (
@@ -720,6 +727,23 @@ const ParserResultCard = ({ itemId, showActions }: { itemId: string; showActions
                 className="flex items-center gap-1 rounded bg-red-600 px-3 py-1.5 text-xs text-white hover:bg-red-700 disabled:opacity-60"
               >
                 <X className="h-3.5 w-3.5" /> Rechazar resultado
+              </button>
+              <button
+                onClick={async () => {
+                  if (!confirm("¿Eliminar este resultado de análisis AI definitivamente?")) return;
+                  setSavingId(parser.id);
+                  await fetch("/api/admin/ai-parsers", {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ parserId: parser.id }),
+                  });
+                  setSavingId(null);
+                  fetchParsers();
+                }}
+                disabled={savingId === parser.id}
+                className="flex items-center gap-1 rounded border border-red-200 bg-white px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-60"
+              >
+                <X className="h-3.5 w-3.5" /> Eliminar
               </button>
             </>
           )}

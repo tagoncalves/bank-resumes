@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/auth";
-import { optionalMoneyInput, requireMoneyInput, toMoneyNumber, toNullableMoneyNumber } from "@/lib/money";
+import { toMoneyNumber, toNullableMoneyNumber } from "@/lib/money";
+import { createManualTransactionForUser } from "@/lib/transactions/create-transaction";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -123,6 +124,7 @@ export async function POST(req: NextRequest) {
     isInstallment,
     installmentCurrent,
     installmentTotal,
+    recurring,
   } = body as {
     statementId?: string;
     date: string;
@@ -134,50 +136,63 @@ export async function POST(req: NextRequest) {
     isInstallment?: boolean;
     installmentCurrent?: number;
     installmentTotal?: number;
+    recurring?: {
+      enabled?: boolean;
+      nextRunAt?: string;
+      reminderDaysBefore?: number;
+      requiresConfirmation?: boolean;
+    };
   };
 
   if (!date || !merchantName || amountArs == null) {
     return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
   }
 
-  let parsedAmountArs;
-  let parsedAmountUsd;
-
   try {
-    parsedAmountArs = requireMoneyInput(amountArs, "amountArs");
-    parsedAmountUsd = optionalMoneyInput(amountUsd, "amountUsd");
+    const tx = await createManualTransactionForUser(session.userId, {
+      date,
+      statementId,
+      merchantName,
+      amountArs,
+      amountUsd,
+      categoryId,
+      transactionType,
+      isInstallment,
+      installmentCurrent,
+      installmentTotal,
+    });
+
+    if (recurring?.enabled) {
+      await prisma.recurringTransaction.create({
+        data: {
+          userId: session.userId,
+          merchantName: merchantName.trim(),
+          amountArs: tx.amountArs,
+          amountUsd: tx.amountUsd,
+          currency: amountUsd != null ? "USD" : "ARS",
+          transactionType: transactionType ?? "DEBIT",
+          categoryId: categoryId ?? null,
+          frequency: "MONTHLY",
+          dayOfMonth: new Date(recurring.nextRunAt ?? date).getDate(),
+          nextRunAt: new Date(recurring.nextRunAt ?? date),
+          requiresConfirmation: recurring.requiresConfirmation ?? true,
+          reminderDaysBefore: Number(recurring.reminderDaysBefore ?? 3),
+        },
+      });
+    }
+
+    return NextResponse.json(
+      {
+        ...tx,
+        amountArs: toMoneyNumber(tx.amountArs),
+        amountUsd: toNullableMoneyNumber(tx.amountUsd),
+      },
+      { status: 201 }
+    );
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Importe inválido" },
+      { error: error instanceof Error ? error.message : "Error al crear movimiento" },
       { status: 400 }
     );
   }
-
-  const tx = await prisma.transaction.create({
-    data: {
-      statementId: statementId ?? null,
-      userId: session.userId,
-      date: new Date(date),
-      merchantName: merchantName.trim(),
-      normalizedMerchant: merchantName.trim().replace(/\s+/g, " "),
-      amountArs: parsedAmountArs,
-      amountUsd: parsedAmountUsd ?? null,
-      categoryId: categoryId ?? null,
-      source: "MANUAL",
-      transactionType: transactionType ?? "DEBIT",
-      isInstallment: isInstallment ?? false,
-      installmentCurrent: installmentCurrent ?? null,
-      installmentTotal: installmentTotal ?? null,
-    },
-    include: { category: true },
-  });
-
-  return NextResponse.json(
-    {
-      ...tx,
-      amountArs: toMoneyNumber(tx.amountArs),
-      amountUsd: toNullableMoneyNumber(tx.amountUsd),
-    },
-    { status: 201 }
-  );
 }

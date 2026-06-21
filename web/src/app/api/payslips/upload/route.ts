@@ -63,8 +63,112 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const mode = formData.get("mode") as string | null;
     const isPdf = isPdfFilename(file.name);
 
+    // Manual import with user-provided data
+    if (mode === "manual") {
+      const employerName = formData.get("employerName") as string | null;
+      const periodLabel = formData.get("periodLabel") as string | null;
+      const payDate = formData.get("payDate") as string | null;
+      const netAmount = formData.get("netAmount") as string | null;
+      const currency = (formData.get("currency") as string | null) || "ARS";
+
+      if (!employerName || !periodLabel || !payDate || !netAmount) {
+        return NextResponse.json({ error: "Faltan datos requeridos: empleador, período, fecha de cobro, sueldo neto" }, { status: 400 });
+      }
+
+      const netAmountNum = parseFloat(netAmount);
+      if (isNaN(netAmountNum) || netAmountNum <= 0) {
+        return NextResponse.json({ error: "El sueldo neto debe ser un número positivo" }, { status: 400 });
+      }
+
+      const salaryCategory = await prisma.category.upsert({
+        where: { name: "Sueldo" },
+        update: {},
+        create: { name: "Sueldo", icon: "💼", color: "#10B981" },
+      });
+
+      const created = await prisma.$transaction(async (tx) => {
+        const incomeTransaction = await tx.transaction.create({
+          data: {
+            userId: session?.userId ?? null,
+            date: new Date(payDate),
+            merchantName: employerName,
+            normalizedMerchant: employerName.replace(/\s+/g, " ").trim(),
+            amountArs: money(netAmountNum),
+            amountUsd: currency === "USD" ? money(netAmountNum) : null,
+            categoryId: salaryCategory.id,
+            transactionType: "CREDIT",
+            source: "IMPORTED",
+            isInstallment: false,
+          },
+        });
+
+        const payslip = await tx.payslip.create({
+          data: {
+            rawFilename: file.name,
+            sourceHash: hash,
+            employerName,
+            periodLabel,
+            payDate: new Date(payDate),
+            netAmount: money(netAmountNum),
+            currency,
+            processingStatus: "COMPLETED",
+            incomeTransactionId: incomeTransaction.id,
+            analysisProvider: "MANUAL",
+            userId: session?.userId ?? null,
+          },
+        });
+
+        return { payslip, incomeTransaction };
+      });
+
+      savePayslipPdf(created.payslip.id, buffer, file.name);
+
+      return NextResponse.json(
+        {
+          payslipId: created.payslip.id,
+          rawFilename: created.payslip.rawFilename,
+          employerName: created.payslip.employerName,
+          periodLabel: created.payslip.periodLabel,
+          amountArs: toMoneyNumber(created.payslip.netAmount),
+          currency: created.payslip.currency,
+          processingStatus: "COMPLETED",
+          importMethod: "MANUAL",
+          transactionId: created.incomeTransaction.id,
+        },
+        { status: 201 }
+      );
+    }
+
+    // AI queue — save file and enqueue for background processing
+    if (mode === "ai") {
+      const queuedPayslip = await prisma.payslip.create({
+        data: {
+          rawFilename: file.name,
+          sourceHash: hash,
+          processingStatus: "QUEUED",
+          analysisProvider: "AI",
+          ...(session?.userId ? { user: { connect: { id: session.userId } } } : {}),
+        },
+      });
+      savePendingPayslipPdf(queuedPayslip.id, buffer, file.name);
+
+      return NextResponse.json(
+        {
+          payslipId: queuedPayslip.id,
+          processingStatus: "QUEUED",
+          importMethod: "AI",
+          message: process.env.DEEPSEEK_API_KEY
+            ? "Recibo enviado a análisis AI en segundo plano."
+            : "Recibo guardado para análisis AI pendiente de integración.",
+        },
+        { status: 202 }
+      );
+    }
+
+    // Original automatic flow: native parser → AI match → DeepSeek
     let mappedPayslip:
       | {
           bankName?: string;

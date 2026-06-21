@@ -2,11 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { isAdmin } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatARS, formatDate } from "@/lib/formatters";
 import { toMoneyNumber } from "@/lib/money";
-import { ArrowLeft, Download, FileText } from "lucide-react";
+import { ArrowLeft, Download, FileText, Trash2 } from "lucide-react";
 import { DeletePayslipButton } from "@/components/ui/delete-payslip-button";
+import { ClearAnalysisButton } from "@/components/ui/clear-analysis-button";
 
 export default async function PayslipDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -52,6 +54,7 @@ export default async function PayslipDetailPage({ params }: { params: Promise<{ 
           >
             <Download className="h-4 w-4" /> Descargar PDF
           </a>
+          <ClearAnalysisButton payslipId={id} analysisProvider={payslip.analysisProvider} />
           <DeletePayslipButton id={id} />
         </div>
       </div>
@@ -72,7 +75,7 @@ export default async function PayslipDetailPage({ params }: { params: Promise<{ 
             </div>
             <div className="text-right">
               <p className="text-2xl font-semibold font-mono text-emerald-600 tabular-nums">
-                {payslip.netAmount != null ? `+${formatARS(toMoneyNumber(payslip.netAmount))}` : "—"}
+                {payslip.netAmount != null ? `${payslip.currency === "USD" ? "USD " : payslip.currency === "EUR" ? "EUR " : "$"}${formatARS(toMoneyNumber(payslip.netAmount))}` : "—"}
               </p>
               {payslip.grossAmount ? (
                 <p className="text-sm font-mono text-zinc-500">Bruto: {formatARS(toMoneyNumber(payslip.grossAmount))}</p>
@@ -119,7 +122,8 @@ export default async function PayslipDetailPage({ params }: { params: Promise<{ 
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 text-sm">
             <DetailItem label="Archivo" value={payslip.rawFilename} />
-            <DetailItem label="Origen" value={payslip.analysisProvider ? "AI" : "Mapeo automático"} />
+            <DetailItem label="Origen" value={describeImportOrigin(payslip.analysisProvider)} />
+            <DetailItem label="Moneda" value={payslip.currency} />
           </div>
         </CardContent>
       </Card>
@@ -127,7 +131,14 @@ export default async function PayslipDetailPage({ params }: { params: Promise<{ 
   );
 }
 
+function describeImportOrigin(provider: string | null) {
+  if (provider === "MANUAL") return "Carga manual";
+  if (provider === "AI") return "AI";
+  return "Mapeo automático";
+}
+
 function describePayslipStatus(provider: string | null, status: string) {
+  if (provider === "MANUAL") return "Importado con carga manual";
   if (!provider) return "Importado con mapeo automático";
   if (status === "QUEUED") return "Pendiente de análisis AI";
   if (status === "ANALYZING") return "Analizando con AI";

@@ -27,6 +27,9 @@ model User {
   aiBanPardons AiBan[] @relation("BanPardon")
   aiParserReviews AiParser[] @relation("AiParserReviewer")
   parserTrainingAnchors ParserTrainingAnchor[]
+  notificationPreferences NotificationPreference[]
+  notificationEvents NotificationEvent[]
+  recurringTransactions RecurringTransaction[]
 }
 
 model AiBan {
@@ -60,6 +63,7 @@ model Payslip {
   payDate              DateTime?
   netAmount            Decimal?
   grossAmount          Decimal?
+  currency             String   @default("ARS")
   processingStatus     String   @default("COMPLETED") // "COMPLETED" | "REVIEW_REQUIRED" | "QUEUED" | "ANALYZING" | "FAILED" | "PRELIMINARY"
   analysisProvider     String?
   analysisModel        String?
@@ -110,6 +114,7 @@ model Category {
   createdAt DateTime @default(now())
 
   transactions Transaction[]
+  recurringTransactions RecurringTransaction[]
 }
 
 model Statement {
@@ -233,11 +238,149 @@ model Transaction {
   user      User?       @relation(fields: [userId], references: [id])
   category  Category?   @relation(fields: [categoryId], references: [id])
   payslip   Payslip?    @relation("PayslipIncomeTransaction")
+  recurringOccurrences RecurringTransactionOccurrence[]
 
   @@index([statementId])
   @@index([userId])
   @@index([date])
   @@index([categoryId])
+}
+
+model NotificationChannel {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  type        String
+  enabled     Boolean  @default(true)
+  isDefault   Boolean  @default(false)
+  configJson  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  templates  NotificationTemplate[]
+  deliveries NotificationDelivery[]
+
+  @@index([type])
+  @@index([enabled])
+}
+
+model NotificationTemplate {
+  id         String   @id @default(cuid())
+  channelId  String
+  eventType  String
+  subject    String?
+  body       String
+  bodyFormat String   @default("TEXT")
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  channel NotificationChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, eventType])
+  @@index([eventType])
+}
+
+model NotificationPreference {
+  id         String   @id @default(cuid())
+  userId     String
+  eventType  String
+  channelIds String
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, eventType])
+}
+
+model NotificationEvent {
+  id           String   @id @default(cuid())
+  userId        String?
+  eventType     String
+  status        String   @default("PENDING")
+  payloadJson   String
+  scheduledFor  DateTime @default(now())
+  dedupeKey     String?  @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user       User? @relation(fields: [userId], references: [id])
+  deliveries NotificationDelivery[]
+
+  @@index([status, scheduledFor])
+  @@index([eventType])
+}
+
+model NotificationDelivery {
+  id                String   @id @default(cuid())
+  eventId           String
+  channelId         String
+  status            String   @default("PENDING")
+  recipient         String
+  renderedSubject   String?
+  renderedBody      String
+  providerMessageId String?
+  attemptCount      Int      @default(0)
+  lastError         String?
+  sentAt            DateTime?
+  nextRetryAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  event   NotificationEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  channel NotificationChannel @relation(fields: [channelId], references: [id])
+
+  @@index([status, nextRetryAt])
+  @@index([eventId])
+}
+
+model RecurringTransaction {
+  id                   String   @id @default(cuid())
+  userId               String
+  merchantName         String
+  amountArs            Decimal
+  amountUsd            Decimal?
+  currency             String   @default("ARS")
+  transactionType      String
+  categoryId           String?
+  frequency            String   @default("MONTHLY")
+  dayOfMonth           Int?
+  nextRunAt            DateTime
+  requiresConfirmation Boolean  @default(true)
+  reminderDaysBefore   Int      @default(3)
+  enabled              Boolean  @default(true)
+  notificationChannels String?
+  notes                String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user        User @relation(fields: [userId], references: [id])
+  category    Category? @relation(fields: [categoryId], references: [id])
+  occurrences RecurringTransactionOccurrence[]
+
+  @@index([userId, enabled])
+  @@index([nextRunAt])
+}
+
+model RecurringTransactionOccurrence {
+  id                     String   @id @default(cuid())
+  recurringTransactionId  String
+  dueDate                DateTime
+  status                 String   @default("PENDING")
+  confirmationTokenHash  String?
+  expiresAt              DateTime?
+  transactionId          String?
+  notificationEventId    String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  recurringTransaction RecurringTransaction @relation(fields: [recurringTransactionId], references: [id], onDelete: Cascade)
+  transaction Transaction? @relation(fields: [transactionId], references: [id])
+
+  @@index([status, dueDate])
+  @@index([recurringTransactionId])
+  @@unique([recurringTransactionId, dueDate])
 }
 
 model AiParser {

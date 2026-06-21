@@ -63,6 +63,21 @@ export async function GET() {
   return NextResponse.json(parsers);
 }
 
+export async function DELETE(request: Request) {
+  const session = await guardAdmin();
+  if (session instanceof NextResponse) return session;
+
+  const { parserId } = await request.json();
+  if (!parserId) return NextResponse.json({ error: "parserId requerido" }, { status: 400 });
+
+  const parser = await prisma.aiParser.findUnique({ where: { id: parserId } });
+  if (!parser) return NextResponse.json({ error: "Parser no encontrado" }, { status: 404 });
+
+  await prisma.aiParser.delete({ where: { id: parserId } });
+
+  return NextResponse.json({ success: true });
+}
+
 export async function PATCH(request: Request) {
   const session = await guardAdmin();
   if (session instanceof NextResponse) return session;

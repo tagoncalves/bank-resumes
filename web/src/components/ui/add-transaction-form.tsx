@@ -26,10 +26,14 @@ const EMPTY_FORM = () => ({
   amountUsd: "",
   categoryId: "",
   transactionType: "DEBIT" as "DEBIT" | "CREDIT",
-  isInstallment: false,
-  installmentCurrent: "1",
-  installmentTotal: "2",
-});
+    isInstallment: false,
+    installmentCurrent: "1",
+    installmentTotal: "2",
+    createRecurring: false,
+    recurringNextRunAt: TODAY(),
+    recurringReminderDaysBefore: "3",
+    recurringRequiresConfirmation: true,
+  });
 
 export function AddTransactionForm({
   onSaved,
@@ -62,6 +66,10 @@ export function AddTransactionForm({
       isInstallment: prefill.isInstallment,
       installmentCurrent: String(prefill.installmentCurrent ?? 1),
       installmentTotal: String(prefill.installmentTotal ?? 2),
+      createRecurring: false,
+      recurringNextRunAt: TODAY(),
+      recurringReminderDaysBefore: "3",
+      recurringRequiresConfirmation: true,
     });
     setOpen(true);
     setError(null);
@@ -115,6 +123,14 @@ export function AddTransactionForm({
       isInstallment: form.isInstallment,
       installmentCurrent: form.isInstallment ? parseInt(form.installmentCurrent, 10) : undefined,
       installmentTotal: form.isInstallment ? parseInt(form.installmentTotal, 10) : undefined,
+      recurring: form.createRecurring
+        ? {
+            enabled: true,
+            nextRunAt: form.recurringNextRunAt,
+            reminderDaysBefore: parseInt(form.recurringReminderDaysBefore, 10) || 3,
+            requiresConfirmation: form.recurringRequiresConfirmation,
+          }
+        : undefined,
     };
 
     const res = await fetch("/api/transactions", {
@@ -317,6 +333,50 @@ export function AddTransactionForm({
             )}
           </div>
         )}
+
+        <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3">
+          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-zinc-700">
+            <input
+              type="checkbox"
+              checked={form.createRecurring}
+              onChange={(e) => set("createRecurring", e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-zinc-300 accent-indigo-600"
+            />
+            Activar recordatorio mensual para este movimiento
+          </label>
+          {form.createRecurring && (
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <div>
+                <label className="mb-1 block text-xs text-zinc-500">Próxima fecha</label>
+                <input
+                  type="date"
+                  value={form.recurringNextRunAt}
+                  onChange={(e) => set("recurringNextRunAt", e.target.value)}
+                  className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-zinc-500">Recordar días antes</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={form.recurringReminderDaysBefore}
+                  onChange={(e) => set("recurringReminderDaysBefore", e.target.value)}
+                  className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                />
+              </div>
+              <label className="mt-5 flex items-center gap-2 text-sm text-zinc-600">
+                <input
+                  type="checkbox"
+                  checked={form.recurringRequiresConfirmation}
+                  onChange={(e) => set("recurringRequiresConfirmation", e.target.checked)}
+                  className="h-3.5 w-3.5 rounded border-zinc-300 accent-indigo-600"
+                />
+                Pedir confirmación antes de crear
+              </label>
+            </div>
+          )}
+        </div>
 
         {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
 

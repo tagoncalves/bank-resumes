@@ -115,6 +115,32 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ success: true, processingStatus: "COMPLETED" });
   }
 
+  if (action === "clear-analysis") {
+    // Clear AI analysis data without re-queuing (keep payslip with manual/raw data)
+    await prisma.payslip.update({
+      where: { id },
+      data: {
+        analysisProvider: null,
+        analysisModel: null,
+        analysisPromptVersion: null,
+        analysisConfidence: null,
+        analysisNotes: null,
+        analysisStructuredJson: null,
+        employerName: payslip.analysisProvider === "AI" ? null : payslip.employerName,
+        employeeName: payslip.analysisProvider === "AI" ? null : payslip.employeeName,
+        periodLabel: payslip.analysisProvider === "AI" ? null : payslip.periodLabel,
+        payDate: payslip.analysisProvider === "AI" ? null : payslip.payDate,
+        netAmount: payslip.analysisProvider === "AI" ? null : payslip.netAmount,
+        grossAmount: payslip.analysisProvider === "AI" ? null : payslip.grossAmount,
+        processingStatus: payslip.incomeTransactionId ? "COMPLETED" : "QUEUED",
+      },
+    });
+
+    await deleteAiParsersForSource("PAYSLIP", id);
+
+    return NextResponse.json({ success: true, processingStatus: payslip.incomeTransactionId ? "COMPLETED" : "QUEUED" });
+  }
+
   if (action === "reject") {
     if (payslip.processingStatus !== "PRELIMINARY") {
       return NextResponse.json({ error: "Solo se pueden rechazar recibos en estado preliminar" }, { status: 400 });
