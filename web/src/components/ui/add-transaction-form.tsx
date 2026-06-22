@@ -4,9 +4,31 @@ import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Plus, X } from "lucide-react";
 import { useToast } from "@/components/ui/toast-provider";
-import { todayInputValue } from "@/lib/dates";
+import { dateInputValue, todayInputValue } from "@/lib/dates";
+import { formatARS, formatUSD } from "@/lib/formatters";
+import { advanceRecurringDate, formatOccurrenceDates, generateOccurrenceDates } from "@/lib/recurring/schedule";
+import { formatMoneyInput, parseMoneyInput, parseMoneyNumber } from "@/lib/money-input";
 
 type Category = { id: string; name: string };
+
+const RECURRENCE_OPTIONS = [
+  { label: "Semanal", frequency: "WEEKLY", interval: "1" },
+  { label: "Quincenal", frequency: "WEEKLY", interval: "2" },
+  { label: "Mensual", frequency: "MONTHLY", interval: "1" },
+  { label: "Bimestral", frequency: "MONTHLY", interval: "2" },
+  { label: "Trimestral", frequency: "MONTHLY", interval: "3" },
+  { label: "Semestral", frequency: "MONTHLY", interval: "6" },
+  { label: "Anual", frequency: "YEARLY", interval: "1" },
+];
+
+type Preview = {
+  count: number;
+  dates: string[];
+  hasMore: boolean;
+  totalArs: number;
+  totalUsd: number | null;
+  capped: boolean;
+};
 
 export interface TransactionPrefill {
   merchantName: string;
@@ -30,10 +52,16 @@ const EMPTY_FORM = () => ({
     isInstallment: false,
     installmentCurrent: "1",
     installmentTotal: "2",
-    createRecurring: false,
-    recurringNextRunAt: TODAY(),
-    recurringReminderDaysBefore: "3",
-    recurringRequiresConfirmation: true,
+  createRecurring: false,
+  recurringNextRunAt: TODAY(),
+  recurringFrequency: "MONTHLY",
+  recurringInterval: "1",
+  recurringReminderDaysBefore: "3",
+  recurringRequiresConfirmation: true,
+  recurringBackfill: false,
+  recurringBackfillFrom: TODAY(),
+  recurringBackfillTo: TODAY(),
+  recurringBackfillMode: "PENDING_CONFIRMATION" as "CREATE_TRANSACTIONS" | "PENDING_CONFIRMATION",
   });
 
 export function AddTransactionForm({
@@ -53,6 +81,7 @@ export function AddTransactionForm({
   const [error, setError] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [form, setForm] = useState(EMPTY_FORM());
+  const [preview, setPreview] = useState<Preview | null>(null);
 
   // When prefill arrives, open the form and load the data
   useEffect(() => {
@@ -69,8 +98,14 @@ export function AddTransactionForm({
       installmentTotal: String(prefill.installmentTotal ?? 2),
       createRecurring: false,
       recurringNextRunAt: TODAY(),
+      recurringFrequency: "MONTHLY",
+      recurringInterval: "1",
       recurringReminderDaysBefore: "3",
       recurringRequiresConfirmation: true,
+      recurringBackfill: false,
+      recurringBackfillFrom: TODAY(),
+      recurringBackfillTo: TODAY(),
+      recurringBackfillMode: "PENDING_CONFIRMATION",
     });
     setOpen(true);
     setError(null);
@@ -81,6 +116,43 @@ export function AddTransactionForm({
       fetch("/api/categories").then((r) => r.json()).then(setCategories).catch(() => {});
     }
   }, [open, categories.length]);
+
+  useEffect(() => {
+    if (!form.date) return;
+    setForm((current) => ({
+      ...current,
+      recurringNextRunAt: dateInputValue(
+        advanceRecurringDate(current.date, current.recurringFrequency, current.recurringInterval, current.date),
+      ),
+    }));
+  }, [form.date, form.recurringFrequency, form.recurringInterval]);
+
+  useEffect(() => {
+    if (!form.createRecurring || !form.recurringBackfill || !form.recurringBackfillFrom || !form.recurringBackfillTo) {
+      setPreview(null);
+      return;
+    }
+
+    const dates = generateOccurrenceDates({
+            anchorDate: form.date,
+      frequency: form.recurringFrequency,
+      interval: Number(form.recurringInterval),
+      from: form.recurringBackfillFrom,
+      to: form.recurringBackfillTo,
+      max: 121,
+    });
+    const count = Math.min(dates.length, 120);
+    const amountArs = parseMoneyNumber(form.amountArs);
+    const amountUsd = form.amountUsd ? parseMoneyNumber(form.amountUsd) : null;
+    setPreview({
+      count,
+      dates: formatOccurrenceDates(dates.slice(0, 12)),
+      hasMore: dates.length > 12,
+      totalArs: Number.isFinite(amountArs) ? amountArs * count : 0,
+      totalUsd: amountUsd != null && Number.isFinite(amountUsd) ? amountUsd * count : null,
+      capped: dates.length > 120,
+    });
+  }, [form.createRecurring, form.recurringBackfill, form.recurringBackfillFrom, form.recurringBackfillTo, form.recurringNextRunAt, form.recurringFrequency, form.recurringInterval, form.amountArs, form.amountUsd]);
 
   function handleClose() {
     setOpen(false);
@@ -97,7 +169,7 @@ export function AddTransactionForm({
     setError(null);
     setSaving(true);
 
-    const amountArs = parseFloat(form.amountArs.replace(",", "."));
+    const amountArs = parseMoneyNumber(form.amountArs);
     if (!form.merchantName || isNaN(amountArs) || amountArs <= 0) {
       setError("Completá descripción e importe (debe ser mayor a 0).");
       setSaving(false);
@@ -114,11 +186,17 @@ export function AddTransactionForm({
       }
     }
 
+    if (form.createRecurring && form.recurringBackfill && (!form.recurringBackfillFrom || !form.recurringBackfillTo)) {
+      setError("Completá el rango de carga retrospectiva.");
+      setSaving(false);
+      return;
+    }
+
     const body = {
       date: form.date,
       merchantName: form.merchantName,
       amountArs,
-      amountUsd: form.amountUsd ? parseFloat(form.amountUsd.replace(",", ".")) : undefined,
+      amountUsd: form.amountUsd ? parseMoneyNumber(form.amountUsd) : undefined,
       categoryId: form.categoryId || undefined,
       transactionType: form.transactionType,
       isInstallment: form.isInstallment,
@@ -127,9 +205,20 @@ export function AddTransactionForm({
       recurring: form.createRecurring
         ? {
             enabled: true,
+            anchorDate: form.date,
             nextRunAt: form.recurringNextRunAt,
+            frequency: form.recurringFrequency,
+            interval: parseInt(form.recurringInterval, 10) || 1,
             reminderDaysBefore: parseInt(form.recurringReminderDaysBefore, 10) || 3,
             requiresConfirmation: form.recurringRequiresConfirmation,
+            backfill: form.recurringBackfill
+              ? {
+                  enabled: true,
+                  from: form.recurringBackfillFrom,
+                  to: form.recurringBackfillTo,
+                  mode: form.recurringBackfillMode,
+                }
+              : undefined,
           }
         : undefined,
     };
@@ -240,7 +329,7 @@ export function AddTransactionForm({
             <input
               type="date"
               value={form.date}
-              onChange={(e) => set("date", e.target.value)}
+              onChange={(e) => setForm((current) => ({ ...current, date: e.target.value, recurringBackfillTo: e.target.value }))}
               required
               className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
             />
@@ -275,9 +364,10 @@ export function AddTransactionForm({
             <label className="mb-1 block text-xs text-zinc-500">Importe ARS</label>
             <input
               type="text"
-              value={form.amountArs}
-              onChange={(e) => set("amountArs", e.target.value)}
-              placeholder="0.00"
+              inputMode="decimal"
+              value={formatMoneyInput(form.amountArs)}
+              onChange={(e) => set("amountArs", parseMoneyInput(e.target.value))}
+              placeholder="0"
               required
               className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-indigo-300"
             />
@@ -286,9 +376,10 @@ export function AddTransactionForm({
             <label className="mb-1 block text-xs text-zinc-500">Importe USD</label>
             <input
               type="text"
-              value={form.amountUsd}
-              onChange={(e) => set("amountUsd", e.target.value)}
-              placeholder="0.00"
+              inputMode="decimal"
+              value={formatMoneyInput(form.amountUsd)}
+              onChange={(e) => set("amountUsd", parseMoneyInput(e.target.value))}
+              placeholder="0"
               className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-indigo-300"
             />
           </div>
@@ -343,38 +434,124 @@ export function AddTransactionForm({
               onChange={(e) => set("createRecurring", e.target.checked)}
               className="h-3.5 w-3.5 rounded border-zinc-300 accent-indigo-600"
             />
-            Activar recordatorio mensual para este movimiento
+            Convertir en recurrente
           </label>
           {form.createRecurring && (
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <div>
-                <label className="mb-1 block text-xs text-zinc-500">Próxima fecha</label>
-                <input
-                  type="date"
-                  value={form.recurringNextRunAt}
-                  onChange={(e) => set("recurringNextRunAt", e.target.value)}
-                  className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
-                />
+            <div className="mt-3 space-y-3">
+              <div className="grid gap-3 sm:grid-cols-4">
+                <div>
+                  <label className="mb-1 block text-xs text-zinc-500">Periodicidad</label>
+                  <select
+                    value={`${form.recurringFrequency}:${form.recurringInterval}`}
+                    onChange={(e) => {
+                      const [frequency, interval] = e.target.value.split(":");
+                      set("recurringFrequency", frequency);
+                      set("recurringInterval", interval);
+                    }}
+                    className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                  >
+                    {RECURRENCE_OPTIONS.map((option) => (
+                      <option key={`${option.frequency}:${option.interval}`} value={`${option.frequency}:${option.interval}`}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-zinc-500">Próxima fecha</label>
+                  <input
+                    type="date"
+                    value={form.recurringNextRunAt}
+                    onChange={(e) => set("recurringNextRunAt", e.target.value)}
+                    className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-zinc-500">Recordar días antes</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.recurringReminderDaysBefore}
+                    onChange={(e) => set("recurringReminderDaysBefore", e.target.value)}
+                    className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-zinc-500">Modo de carga</label>
+                  <div className="flex rounded border border-zinc-200 bg-white p-1">
+                    <button
+                      type="button"
+                      onClick={() => set("recurringRequiresConfirmation", false)}
+                      className={`flex-1 rounded px-2 py-1 text-xs ${!form.recurringRequiresConfirmation ? "bg-emerald-100 text-emerald-700" : "text-zinc-500"}`}
+                    >
+                      Auto
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => set("recurringRequiresConfirmation", true)}
+                      className={`flex-1 rounded px-2 py-1 text-xs ${form.recurringRequiresConfirmation ? "bg-indigo-100 text-indigo-700" : "text-zinc-500"}`}
+                    >
+                      Confirmar
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="mb-1 block text-xs text-zinc-500">Recordar días antes</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={form.recurringReminderDaysBefore}
-                  onChange={(e) => set("recurringReminderDaysBefore", e.target.value)}
-                  className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
-                />
+
+              <div className="rounded-md border border-zinc-200 bg-white p-3">
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-zinc-700">
+                  <input
+                    type="checkbox"
+                    checked={form.recurringBackfill}
+                    onChange={(e) => set("recurringBackfill", e.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-zinc-300 accent-indigo-600"
+                  />
+                  Cargar ocurrencias anteriores
+                </label>
+                {form.recurringBackfill && (
+                  <div className="mt-3 space-y-3">
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div>
+                        <label className="mb-1 block text-xs text-zinc-500">Desde</label>
+                        <input
+                          type="date"
+                          value={form.recurringBackfillFrom}
+                          onChange={(e) => set("recurringBackfillFrom", e.target.value)}
+                          className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-zinc-500">Hasta</label>
+                        <input
+                          type="date"
+                          value={form.recurringBackfillTo}
+                          onChange={(e) => set("recurringBackfillTo", e.target.value)}
+                          className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-zinc-500">Acción histórica</label>
+                        <select
+                          value={form.recurringBackfillMode}
+                          onChange={(e) => set("recurringBackfillMode", e.target.value as "CREATE_TRANSACTIONS" | "PENDING_CONFIRMATION")}
+                          className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                        >
+                          <option value="PENDING_CONFIRMATION">Dejar pendientes</option>
+                          <option value="CREATE_TRANSACTIONS">Crear movimientos ahora</option>
+                        </select>
+                      </div>
+                    </div>
+                    {preview && (
+                      <div className="rounded-md bg-zinc-50 p-2 text-xs text-zinc-600">
+                        <p className="font-medium text-zinc-700">
+                          {preview.count} ocurrencia{preview.count === 1 ? "" : "s"} · total estimado {formatARS(preview.totalArs)}
+                          {preview.totalUsd != null ? ` / ${formatUSD(preview.totalUsd)}` : ""}
+                          {preview.capped ? " · limitado a 120" : ""}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-              <label className="mt-5 flex items-center gap-2 text-sm text-zinc-600">
-                <input
-                  type="checkbox"
-                  checked={form.recurringRequiresConfirmation}
-                  onChange={(e) => set("recurringRequiresConfirmation", e.target.checked)}
-                  className="h-3.5 w-3.5 rounded border-zinc-300 accent-indigo-600"
-                />
-                Pedir confirmación antes de crear
-              </label>
             </div>
           )}
         </div>

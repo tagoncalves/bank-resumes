@@ -3,6 +3,7 @@
 import { useState, useTransition, useEffect } from "react";
 import { X } from "lucide-react";
 import { dateInputValue } from "@/lib/dates";
+import { formatMoneyInput, parseMoneyInput, parseMoneyNumber } from "@/lib/money-input";
 
 type Category = { id: string; name: string };
 
@@ -57,7 +58,7 @@ export function EditTransactionModal({
     e.preventDefault();
     setError(null);
 
-    const amountArs = parseFloat(form.amountArs.replace(",", "."));
+    const amountArs = parseMoneyNumber(form.amountArs);
     if (!form.merchantName || isNaN(amountArs) || amountArs <= 0) {
       setError("Completá descripción e importe.");
       return;
@@ -67,7 +68,7 @@ export function EditTransactionModal({
       date: form.date,
       merchantName: form.merchantName,
       amountArs,
-      amountUsd: form.amountUsd ? parseFloat(form.amountUsd.replace(",", ".")) : null,
+      amountUsd: form.amountUsd ? parseMoneyNumber(form.amountUsd) : null,
       categoryId: form.categoryId || null,
       transactionType: form.transactionType,
       isInstallment: form.isInstallment,
@@ -164,8 +165,9 @@ export function EditTransactionModal({
               <label className="mb-1 block text-xs text-zinc-500">Importe ARS</label>
               <input
                 type="text"
-                value={form.amountArs}
-                onChange={(e) => set("amountArs", e.target.value)}
+                inputMode="decimal"
+                value={formatMoneyInput(form.amountArs)}
+                onChange={(e) => set("amountArs", parseMoneyInput(e.target.value))}
                 required
                 className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-indigo-300"
               />
@@ -174,9 +176,10 @@ export function EditTransactionModal({
               <label className="mb-1 block text-xs text-zinc-500">Importe USD</label>
               <input
                 type="text"
-                value={form.amountUsd}
-                onChange={(e) => set("amountUsd", e.target.value)}
-                placeholder="0.00"
+                inputMode="decimal"
+                value={formatMoneyInput(form.amountUsd)}
+                onChange={(e) => set("amountUsd", parseMoneyInput(e.target.value))}
+                placeholder="0"
                 className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-indigo-300"
               />
             </div>

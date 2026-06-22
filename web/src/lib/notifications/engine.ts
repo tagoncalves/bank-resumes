@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { decimalToNumber, createManualTransactionForUser } from "@/lib/transactions/create-transaction";
 import { defaultTemplates, formatMoney, renderTemplate } from "@/lib/notifications/template";
 import { EmailCarrier } from "@/lib/notifications/carriers/email";
+import { advanceRecurringDate } from "@/lib/recurring/schedule";
 
 const EVENT_RECURRENT_REMINDER = "RECURRENT_TRANSACTION_REMINDER";
 const EVENT_RECURRENT_CREATED = "RECURRENT_TRANSACTION_CREATED";
@@ -14,12 +15,6 @@ function appUrl() {
 function addDays(date: Date, days: number) {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
-  return next;
-}
-
-function addMonth(date: Date) {
-  const next = new Date(date);
-  next.setMonth(next.getMonth() + 1);
   return next;
 }
 
@@ -103,65 +98,79 @@ async function generateRecurringReminders(now: Date) {
   let generated = 0;
 
   for (const item of recurring) {
-    const reminderDate = addDays(item.nextRunAt, -item.reminderDaysBefore);
-    if (reminderDate > now) continue;
+    let dueDate = item.nextRunAt;
+    let nextRunAt = item.nextRunAt;
+    let safety = 0;
 
-    const occurrence = await prisma.recurringTransactionOccurrence.upsert({
-      where: { recurringTransactionId_dueDate: { recurringTransactionId: item.id, dueDate: item.nextRunAt } },
-      update: {},
-      create: {
-        recurringTransactionId: item.id,
-        dueDate: item.nextRunAt,
-        status: "PENDING",
-        expiresAt: addDays(item.nextRunAt, 7),
-      },
-    });
+    while (safety < 24) {
+      if (item.endDate && dueDate > item.endDate) break;
 
-    if (item.requiresConfirmation) {
-      if (!["PENDING", "NOTIFIED"].includes(occurrence.status)) continue;
+      const reminderDate = addDays(dueDate, -item.reminderDaysBefore);
+      if (reminderDate > now) break;
 
-      const payload = recurringPayload(item, occurrence.id);
-      const event = await createEventOnce({
-        userId: item.userId,
-        eventType: EVENT_RECURRENT_REMINDER,
-        payload,
-        dedupeKey: `recurring:${occurrence.id}:reminder`,
+      const occurrence = await prisma.recurringTransactionOccurrence.upsert({
+        where: { recurringTransactionId_dueDate: { recurringTransactionId: item.id, dueDate } },
+        update: {},
+        create: {
+          recurringTransactionId: item.id,
+          dueDate,
+          status: "PENDING",
+          expiresAt: addDays(dueDate, 7),
+          generationType: "FUTURE",
+        },
       });
 
-      await prisma.recurringTransactionOccurrence.update({
-        where: { id: occurrence.id },
-        data: { status: "NOTIFIED", notificationEventId: event.id },
-      });
-      generated += 1;
-    } else if (item.nextRunAt <= now && occurrence.status === "PENDING") {
-      const tx = await createManualTransactionForUser(item.userId, {
-        date: item.nextRunAt,
-        merchantName: item.merchantName,
-        amountArs: decimalToNumber(item.amountArs),
-        amountUsd: item.amountUsd == null ? null : decimalToNumber(item.amountUsd),
-        categoryId: item.categoryId,
-        transactionType: item.transactionType,
-        source: "RECURRENT",
-      });
+      if (item.requiresConfirmation) {
+        if (["PENDING", "NOTIFIED"].includes(occurrence.status)) {
+          const payload = recurringPayload(item, occurrence.id, dueDate);
+          const event = await createEventOnce({
+            userId: item.userId,
+            eventType: EVENT_RECURRENT_REMINDER,
+            payload,
+            dedupeKey: `recurring:${occurrence.id}:reminder`,
+          });
 
-      await prisma.recurringTransactionOccurrence.update({
-        where: { id: occurrence.id },
-        data: { status: "EXECUTED", transactionId: tx.id },
-      });
+          await prisma.recurringTransactionOccurrence.update({
+            where: { id: occurrence.id },
+            data: { status: "NOTIFIED", notificationEventId: event.id, createdByMode: "CONFIRMATION" },
+          });
+          generated += 1;
+        }
+      } else if (dueDate <= now && occurrence.status === "PENDING") {
+        const tx = await createManualTransactionForUser(item.userId, {
+          date: dueDate,
+          merchantName: item.merchantName,
+          amountArs: decimalToNumber(item.amountArs),
+          amountUsd: item.amountUsd == null ? null : decimalToNumber(item.amountUsd),
+          categoryId: item.categoryId,
+          transactionType: item.transactionType,
+          source: "RECURRENT",
+        });
 
-      await createEventOnce({
-        userId: item.userId,
-        eventType: EVENT_RECURRENT_CREATED,
-        payload: recurringPayload(item, occurrence.id),
-        dedupeKey: `recurring:${occurrence.id}:created`,
-      });
-      generated += 1;
+        await prisma.recurringTransactionOccurrence.update({
+          where: { id: occurrence.id },
+          data: { status: "EXECUTED", transactionId: tx.id, createdByMode: "AUTO" },
+        });
+
+        await createEventOnce({
+          userId: item.userId,
+          eventType: EVENT_RECURRENT_CREATED,
+          payload: recurringPayload(item, occurrence.id, dueDate),
+          dedupeKey: `recurring:${occurrence.id}:created`,
+        });
+        generated += 1;
+      }
+
+      if (dueDate > now) break;
+      nextRunAt = advanceRecurringDate(dueDate, item.frequency, item.interval, item.anchorDate ?? item.nextRunAt);
+      dueDate = nextRunAt;
+      safety += 1;
     }
 
-    if (item.nextRunAt <= now) {
+    if (nextRunAt.getTime() !== item.nextRunAt.getTime()) {
       await prisma.recurringTransaction.update({
         where: { id: item.id },
-        data: { nextRunAt: addMonth(item.nextRunAt) },
+        data: { nextRunAt, lastGeneratedAt: now },
       });
     }
   }
@@ -172,6 +181,7 @@ async function generateRecurringReminders(now: Date) {
 function recurringPayload(
   item: Prisma.RecurringTransactionGetPayload<{ include: { user: true; category: true } }>,
   occurrenceId: string,
+  dueDate = item.nextRunAt,
 ) {
   const amount = formatMoney(decimalToNumber(item.amountArs), item.currency);
   return {
@@ -180,7 +190,7 @@ function recurringPayload(
     merchantName: item.merchantName,
     amount,
     currency: item.currency,
-    dueDate: item.nextRunAt.toLocaleDateString("es-AR"),
+    dueDate: dueDate.toLocaleDateString("es-AR"),
     categoryName: item.category?.name ?? "Sin categoría",
     confirmUrl: `${appUrl()}/admin/notifications?occurrenceId=${occurrenceId}`,
     rejectUrl: `${appUrl()}/admin/notifications?occurrenceId=${occurrenceId}`,

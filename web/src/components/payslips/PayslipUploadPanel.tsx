@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast-provider";
 import { cn } from "@/lib/utils";
+import { formatMoneyInput, parseMoneyInput } from "@/lib/money-input";
 
 interface ImportItem {
   file: File;
@@ -25,19 +26,6 @@ const MONTHS = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
-
-function formatCurrencyInput(value: string): string {
-  const digits = value.replace(/[^\d]/g, "");
-  if (!digits) return "";
-  const num = parseInt(digits, 10);
-  const formatted = num.toLocaleString("es-AR");
-  return `$ ${formatted}`;
-}
-
-function parseCurrencyDisplay(display: string): string {
-  const cleaned = display.replace(/[^0-9,]/g, "").replace(/\./g, "").replace(",", ".");
-  return cleaned;
-}
 
 async function readJsonSafely(res: Response) {
   const text = await res.text();
@@ -126,21 +114,14 @@ export default function PayslipUploadPanel({ onComplete }: { onComplete?: () => 
   }
 
   function handleNetAmountChange(index: number, raw: string) {
-    const digits = raw.replace(/[^\d]/g, "");
-    if (digits === "") {
+    const parsed = parseMoneyInput(raw);
+    if (parsed === "") {
       updateItem(index, { netAmount: "" });
       return;
     }
-    const num = parseInt(digits, 10);
+    const num = Number(parsed);
     if (isNaN(num)) return;
-    updateItem(index, { netAmount: String(num) });
-  }
-
-  function netAmountDisplay(value: string): string {
-    if (!value) return "";
-    const num = parseInt(value, 10);
-    if (isNaN(num)) return "";
-    return `$ ${num.toLocaleString("es-AR")}`;
+    updateItem(index, { netAmount: parsed });
   }
 
   async function importAll() {
@@ -451,11 +432,8 @@ export default function PayslipUploadPanel({ onComplete }: { onComplete?: () => 
                               <input
                                 type="text"
                                 inputMode="numeric"
-                                value={item.netAmount ? netAmountDisplay(item.netAmount) : ""}
-                                onChange={(e) => {
-                                  const raw = e.target.value.replace(/[^0-9]/g, "");
-                                  handleNetAmountChange(index, raw);
-                                }}
+                                value={formatMoneyInput(item.netAmount)}
+                                onChange={(e) => handleNetAmountChange(index, e.target.value)}
                                 placeholder="0"
                                 className="w-full rounded-lg border border-zinc-300 py-2 pl-7 pr-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 tabular-nums"
                               />

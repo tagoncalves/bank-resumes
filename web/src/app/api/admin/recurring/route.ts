@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin";
 import { money, toMoneyNumber, toNullableMoneyNumber, type MoneyValue } from "@/lib/money";
 import { parseDateOnly } from "@/lib/dates";
+import { normalizeFrequency, normalizeInterval } from "@/lib/recurring/schedule";
 
 function serializeRecurring(item: {
   amountArs: MoneyValue;
@@ -35,6 +36,9 @@ export async function POST(request: Request) {
   if (!body.merchantName || body.amountArs == null || !body.nextRunAt) {
     return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
   }
+  const frequency = normalizeFrequency(body.frequency);
+  const interval = normalizeInterval(body.interval);
+  const anchorDate = parseDateOnly(body.nextRunAt);
 
   const created = await prisma.recurringTransaction.create({
     data: {
@@ -45,9 +49,11 @@ export async function POST(request: Request) {
       currency: body.currency ?? "ARS",
       transactionType: body.transactionType ?? "DEBIT",
       categoryId: body.categoryId || null,
-      frequency: "MONTHLY",
-      dayOfMonth: parseDateOnly(body.nextRunAt).getUTCDate(),
-      nextRunAt: parseDateOnly(body.nextRunAt),
+      frequency,
+      interval,
+      anchorDate,
+      dayOfMonth: anchorDate.getUTCDate(),
+      nextRunAt: anchorDate,
       requiresConfirmation: body.requiresConfirmation ?? true,
       reminderDaysBefore: Number(body.reminderDaysBefore ?? 3),
       notes: body.notes || null,

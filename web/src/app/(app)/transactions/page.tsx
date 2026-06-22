@@ -12,6 +12,7 @@ import { TransactionFilter } from "@/components/transactions/TransactionFilter";
 import { CategoryPicker } from "@/components/ui/category-picker";
 import { MerchantNameEditor } from "@/components/ui/inline-transaction-editors";
 import { todayInputValue } from "@/lib/dates";
+import { formatMoneyInput, parseMoneyInput } from "@/lib/money-input";
 
 type Category = { id: string; name: string; color: string | null };
 
@@ -231,21 +232,21 @@ function TransactionsInner() {
             ))}
           </div>
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
             min="0"
-            step="0.01"
             placeholder="Mín."
-            value={amountMin}
-            onChange={(e) => updateFilterParam("amountMin", e.target.value)}
+            value={formatMoneyInput(amountMin)}
+            onChange={(e) => updateFilterParam("amountMin", parseMoneyInput(e.target.value))}
             className="w-24 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
           />
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
             min="0"
-            step="0.01"
             placeholder="Máx."
-            value={amountMax}
-            onChange={(e) => updateFilterParam("amountMax", e.target.value)}
+            value={formatMoneyInput(amountMax)}
+            onChange={(e) => updateFilterParam("amountMax", parseMoneyInput(e.target.value))}
             className="w-24 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
           />
         {search && (

@@ -345,8 +345,12 @@ model RecurringTransaction {
   transactionType      String
   categoryId           String?
   frequency            String   @default("MONTHLY")
+  interval             Int      @default(1)
+  anchorDate           DateTime?
   dayOfMonth           Int?
   nextRunAt            DateTime
+  endDate              DateTime?
+  lastGeneratedAt      DateTime?
   requiresConfirmation Boolean  @default(true)
   reminderDaysBefore   Int      @default(3)
   enabled              Boolean  @default(true)
@@ -372,6 +376,8 @@ model RecurringTransactionOccurrence {
   expiresAt              DateTime?
   transactionId          String?
   notificationEventId    String?
+  generationType         String?
+  createdByMode          String?
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 

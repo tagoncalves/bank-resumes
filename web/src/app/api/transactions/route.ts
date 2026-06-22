@@ -4,7 +4,8 @@ import { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/auth";
 import { toMoneyNumber, toNullableMoneyNumber } from "@/lib/money";
 import { createManualTransactionForUser } from "@/lib/transactions/create-transaction";
-import { parseDateOnly, parseDateRangeEnd, parseDateRangeStart } from "@/lib/dates";
+import { dateInputValue, parseDateOnly, parseDateRangeEnd, parseDateRangeStart } from "@/lib/dates";
+import { generateOccurrenceDates, nextOccurrenceAfter, normalizeFrequency, normalizeInterval } from "@/lib/recurring/schedule";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -177,9 +178,18 @@ export async function POST(req: NextRequest) {
     installmentTotal?: number;
     recurring?: {
       enabled?: boolean;
+      anchorDate?: string;
       nextRunAt?: string;
+      frequency?: string;
+      interval?: number;
       reminderDaysBefore?: number;
       requiresConfirmation?: boolean;
+      backfill?: {
+        enabled?: boolean;
+        from?: string;
+        to?: string;
+        mode?: "CREATE_TRANSACTIONS" | "PENDING_CONFIRMATION";
+      };
     };
   };
 
@@ -202,21 +212,74 @@ export async function POST(req: NextRequest) {
     });
 
     if (recurring?.enabled) {
-      await prisma.recurringTransaction.create({
-        data: {
-          userId: session.userId,
-          merchantName: merchantName.trim(),
-          amountArs: tx.amountArs,
-          amountUsd: tx.amountUsd,
-          currency: amountUsd != null ? "USD" : "ARS",
-          transactionType: transactionType ?? "DEBIT",
-          categoryId: categoryId ?? null,
-          frequency: "MONTHLY",
-          dayOfMonth: parseDateOnly(recurring.nextRunAt ?? date).getUTCDate(),
-          nextRunAt: parseDateOnly(recurring.nextRunAt ?? date),
-          requiresConfirmation: recurring.requiresConfirmation ?? true,
-          reminderDaysBefore: Number(recurring.reminderDaysBefore ?? 3),
-        },
+      const frequency = normalizeFrequency(recurring.frequency);
+      const interval = normalizeInterval(recurring.interval);
+      const anchorDate = parseDateOnly(recurring.anchorDate ?? date);
+      const backfillTo = parseDateOnly(recurring.backfill?.to ?? date);
+      const backfillDates = recurring.backfill?.enabled && recurring.backfill.from
+        ? generateOccurrenceDates({
+            anchorDate,
+            frequency,
+            interval,
+            from: recurring.backfill.from,
+            to: backfillTo,
+            max: 120,
+          })
+        : [];
+
+      await prisma.$transaction(async (db) => {
+        const recurringTransaction = await db.recurringTransaction.create({
+          data: {
+            userId: session.userId,
+            merchantName: merchantName.trim(),
+            amountArs: tx.amountArs,
+            amountUsd: tx.amountUsd,
+            currency: amountUsd != null ? "USD" : "ARS",
+            transactionType: transactionType ?? "DEBIT",
+            categoryId: categoryId ?? null,
+            frequency,
+            interval,
+            anchorDate,
+            dayOfMonth: anchorDate.getUTCDate(),
+            nextRunAt: nextOccurrenceAfter({ anchorDate, frequency, interval, after: backfillDates.length ? backfillTo : new Date() }),
+            requiresConfirmation: recurring.requiresConfirmation ?? true,
+            reminderDaysBefore: Number(recurring.reminderDaysBefore ?? 3),
+          },
+        });
+
+        for (const dueDate of backfillDates) {
+          const isBaseTransactionDate = dateInputValue(dueDate) === dateInputValue(tx.date);
+          const shouldCreate = recurring.backfill?.mode === "CREATE_TRANSACTIONS";
+          const createdTx = isBaseTransactionDate
+            ? tx
+            : shouldCreate
+            ? await db.transaction.create({
+                data: {
+                  userId: session.userId,
+                  date: dueDate,
+                  merchantName: merchantName.trim(),
+                  normalizedMerchant: merchantName.trim().replace(/\s+/g, " "),
+                  amountArs: tx.amountArs,
+                  amountUsd: tx.amountUsd,
+                  categoryId: categoryId ?? null,
+                  transactionType: transactionType ?? "DEBIT",
+                  source: "RECURRENT",
+                  isInstallment: false,
+                },
+              })
+            : null;
+
+          await db.recurringTransactionOccurrence.create({
+            data: {
+              recurringTransactionId: recurringTransaction.id,
+              dueDate,
+              status: createdTx ? "EXECUTED" : "PENDING",
+              transactionId: createdTx?.id ?? null,
+              generationType: "BACKFILL",
+              createdByMode: isBaseTransactionDate ? "BASE_TRANSACTION" : createdTx ? "BACKFILL_AUTO" : "CONFIRMATION",
+            },
+          });
+        }
       });
     }
 
