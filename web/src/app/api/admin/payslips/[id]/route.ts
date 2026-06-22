@@ -8,6 +8,7 @@ import { parsePayslipBuffer } from "@/lib/payslip-parser";
 import { money } from "@/lib/money";
 import { ocrImage } from "@/lib/ocr";
 import { createAiParserFromAnalysis, deleteAiParsersForSource } from "@/lib/ai/parser-generator";
+import { deletePayslipWithIncomeTransaction, softDeletePayslipIncomeTransaction } from "@/lib/payslips/delete";
 import { readPayslipPdf as readStoredPayslipFile, savePayslipPdf } from "@/lib/statement-pdf";
 import { isPdfFilename } from "@/lib/parser-training/source-pdf";
 import { parseDateOnly } from "@/lib/dates";
@@ -174,25 +175,28 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   if (action === "retry") {
-    // Clear previous data (no transaction to delete in PRELIMINARY state)
-    await prisma.payslip.update({
-      where: { id },
-      data: {
-        processingStatus: "ANALYZING",
-        analysisProvider: "AI",
-        analysisModel: null,
-        analysisPromptVersion: null,
-        analysisConfidence: null,
-        analysisNotes: null,
-        analysisStructuredJson: null,
-        employerName: null,
-        employeeName: null,
-        periodLabel: null,
-        payDate: null,
-        netAmount: null,
-        grossAmount: null,
-        incomeTransactionId: null,
-      },
+    // Clear previous data and remove any income transaction linked to the previous analysis.
+    await prisma.$transaction(async (tx) => {
+      await softDeletePayslipIncomeTransaction(tx, payslip.incomeTransactionId);
+      await tx.payslip.update({
+        where: { id },
+        data: {
+          processingStatus: "ANALYZING",
+          analysisProvider: "AI",
+          analysisModel: null,
+          analysisPromptVersion: null,
+          analysisConfidence: null,
+          analysisNotes: null,
+          analysisStructuredJson: null,
+          employerName: null,
+          employeeName: null,
+          periodLabel: null,
+          payDate: null,
+          netAmount: null,
+          grossAmount: null,
+          incomeTransactionId: null,
+        },
+      });
     });
 
     // Clean up old AI parsers
@@ -302,12 +306,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     // Clean up old AI parsers first
     await deleteAiParsersForSource("PAYSLIP", id);
 
-    await prisma.$transaction([
-      ...(payslip.incomeTransactionId
-        ? [prisma.transaction.delete({ where: { id: payslip.incomeTransactionId } })]
-        : []),
-      prisma.payslip.delete({ where: { id } }),
-    ]);
+    await prisma.$transaction((tx) => deletePayslipWithIncomeTransaction(tx, id, payslip.incomeTransactionId));
 
     deletePayslipFiles(id);
 

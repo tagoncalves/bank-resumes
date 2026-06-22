@@ -20,6 +20,9 @@ export async function GET(req: NextRequest) {
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
   const bankName = searchParams.get("bankName");
+  const currency = searchParams.get("currency");
+  const amountMin = searchParams.get("amountMin");
+  const amountMax = searchParams.get("amountMax");
 
   const sortBy = searchParams.get("sortBy") ?? "date";
   const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
@@ -37,8 +40,21 @@ export async function GET(req: NextRequest) {
     userId: session.userId,
   };
 
-  if (search) {
-    where.merchantName = { contains: search };
+  const andClauses: Prisma.TransactionWhereInput[] = [];
+
+  if (search?.trim()) {
+    const term = search.trim();
+    andClauses.push({
+      OR: [
+        { merchantName: { contains: term } },
+        { normalizedMerchant: { contains: term } },
+        { cardLastFour: { contains: term } },
+        { statement: { bankName: { contains: term } } },
+        { category: { name: { contains: term } } },
+        { payslip: { employerName: { contains: term } } },
+        { payslip: { periodLabel: { contains: term } } },
+      ],
+    });
   }
   if (categoryId) {
     const ids = categoryId.split(",").filter(Boolean);
@@ -59,7 +75,7 @@ export async function GET(req: NextRequest) {
     if (origins.includes("statement")) originClauses.push({ statementId: { not: null } });
     if (origins.includes("payslip")) originClauses.push({ payslip: { isNot: null } });
     if (originClauses.length) {
-      where.AND = [...((where.AND as Prisma.TransactionWhereInput[] | undefined) ?? []), { OR: originClauses }];
+      andClauses.push({ OR: originClauses });
     }
   }
   if (type) {
@@ -70,6 +86,23 @@ export async function GET(req: NextRequest) {
       where.transactionType = { in: types };
     }
   }
+  if (currency === "USD") {
+    where.amountUsd = { not: null };
+  } else if (currency === "ARS") {
+    where.amountArs = { gt: 0 };
+  }
+
+  const parsedAmountMin = amountMin ? Number(amountMin) : NaN;
+  const parsedAmountMax = amountMax ? Number(amountMax) : NaN;
+  if (!Number.isNaN(parsedAmountMin) || !Number.isNaN(parsedAmountMax)) {
+    const amountFilter: Prisma.DecimalFilter = {};
+    if (!Number.isNaN(parsedAmountMin)) amountFilter.gte = parsedAmountMin;
+    if (!Number.isNaN(parsedAmountMax)) amountFilter.lte = parsedAmountMax;
+    if (currency === "USD") where.amountUsd = { ...((where.amountUsd as Prisma.DecimalNullableFilter) ?? {}), ...amountFilter };
+    else where.amountArs = { ...((where.amountArs as Prisma.DecimalFilter) ?? {}), ...amountFilter };
+  }
+
+  if (andClauses.length) where.AND = andClauses;
 
   const [total, transactions, debitSum, creditSum] = await Promise.all([
     prisma.transaction.count({ where }),
@@ -86,11 +119,11 @@ export async function GET(req: NextRequest) {
     }),
     prisma.transaction.aggregate({
       where: { ...where, transactionType: "DEBIT" },
-      _sum: { amountArs: true },
+      _sum: { amountArs: true, amountUsd: true },
     }),
     prisma.transaction.aggregate({
       where: { ...where, transactionType: "CREDIT" },
-      _sum: { amountArs: true },
+      _sum: { amountArs: true, amountUsd: true },
     }),
   ]);
 
@@ -105,7 +138,12 @@ export async function GET(req: NextRequest) {
     total,
     page,
     pageSize: limit,
+    debitTotal: toMoneyNumber(debitSum._sum.amountArs),
+    creditTotal: toMoneyNumber(creditSum._sum.amountArs),
+    debitTotalUsd: toMoneyNumber(debitSum._sum.amountUsd),
+    creditTotalUsd: toMoneyNumber(creditSum._sum.amountUsd),
     netTotal: toMoneyNumber(debitSum._sum.amountArs) - toMoneyNumber(creditSum._sum.amountArs),
+    netTotalUsd: toMoneyNumber(debitSum._sum.amountUsd) - toMoneyNumber(creditSum._sum.amountUsd),
   });
 }
 

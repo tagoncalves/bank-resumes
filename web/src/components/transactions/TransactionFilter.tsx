@@ -66,13 +66,25 @@ export function TransactionFilter() {
   }, []);
 
   function buildUrl(month?: string, months?: number, catIds?: string[], origins?: string[], types?: string[]) {
-    const sp = new URLSearchParams();
-    if (month) sp.set("month", month);
-    else if (months) sp.set("months", String(months));
+    const sp = new URLSearchParams(searchParams.toString());
+    if (month) {
+      sp.set("month", month);
+      sp.delete("months");
+    } else if (months) {
+      sp.delete("month");
+      sp.set("months", String(months));
+    } else {
+      sp.delete("month");
+      sp.delete("months");
+    }
     if (catIds?.length) sp.set("categoryId", catIds.join(","));
+    else sp.delete("categoryId");
     if (origins?.length) sp.set("origin", origins.join(","));
+    else sp.delete("origin");
     if (types?.length) sp.set("type", types.join(","));
-    return `/transactions?${sp.toString()}`;
+    else sp.delete("type");
+    const query = sp.toString();
+    return query ? `/transactions?${query}` : "/transactions";
   }
 
   const now = new Date();

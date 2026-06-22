@@ -4,6 +4,7 @@ import path from "path";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { deleteAiParsersForSource } from "@/lib/ai/parser-generator";
+import { deletePayslipWithIncomeTransaction } from "@/lib/payslips/delete";
 
 const PAYSLIP_DIR = path.join(process.cwd(), "uploads", "payslips");
 const PENDING_DIR = path.join(PAYSLIP_DIR, "pending");
@@ -23,12 +24,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   // Clean up old AI parsers
   await deleteAiParsersForSource("PAYSLIP", id);
 
-  await prisma.$transaction([
-    ...(payslip.incomeTransactionId
-      ? [prisma.transaction.delete({ where: { id: payslip.incomeTransactionId } })]
-      : []),
-    prisma.payslip.delete({ where: { id } }),
-  ]);
+  await prisma.$transaction((tx) => deletePayslipWithIncomeTransaction(tx, id, payslip.incomeTransactionId));
 
   for (const dir of [PAYSLIP_DIR, PENDING_DIR]) {
     const filePath = path.join(dir, `${id}.pdf`);
