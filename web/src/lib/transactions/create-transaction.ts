@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { money, optionalMoneyInput, requireMoneyInput } from "@/lib/money";
+import { parseDateOnly } from "@/lib/dates";
 
 export interface CreateTransactionInput {
   statementId?: string | null;
@@ -32,7 +33,7 @@ export async function createManualTransactionForUser(userId: string | null, inpu
     data: {
       userId,
       statementId: input.statementId ?? null,
-      date: input.date instanceof Date ? input.date : new Date(input.date),
+      date: parseDateOnly(input.date),
       merchantName,
       normalizedMerchant: merchantName.replace(/\s+/g, " "),
       amountArs: parsedAmountArs,

@@ -4,6 +4,7 @@ import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Plus, X } from "lucide-react";
 import { useToast } from "@/components/ui/toast-provider";
+import { todayInputValue } from "@/lib/dates";
 
 type Category = { id: string; name: string };
 
@@ -18,7 +19,7 @@ export interface TransactionPrefill {
   installmentTotal?: number | null;
 }
 
-const TODAY = () => new Date().toISOString().slice(0, 10);
+const TODAY = () => todayInputValue();
 const EMPTY_FORM = () => ({
   date: TODAY(),
   merchantName: "",

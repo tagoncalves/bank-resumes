@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/auth";
 import { toMoneyNumber, toNullableMoneyNumber } from "@/lib/money";
 import { createManualTransactionForUser } from "@/lib/transactions/create-transaction";
+import { parseDateOnly, parseDateRangeEnd, parseDateRangeStart } from "@/lib/dates";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -45,8 +46,8 @@ export async function GET(req: NextRequest) {
   }
   if (dateFrom || dateTo) {
     where.date = {};
-    if (dateFrom) (where.date as Prisma.DateTimeFilter).gte = new Date(dateFrom);
-    if (dateTo) (where.date as Prisma.DateTimeFilter).lte = new Date(dateTo);
+    if (dateFrom) (where.date as Prisma.DateTimeFilter).gte = parseDateRangeStart(dateFrom);
+    if (dateTo) (where.date as Prisma.DateTimeFilter).lte = parseDateRangeEnd(dateTo);
   }
   if (bankName) {
     where.statement = { bankName };
@@ -173,8 +174,8 @@ export async function POST(req: NextRequest) {
           transactionType: transactionType ?? "DEBIT",
           categoryId: categoryId ?? null,
           frequency: "MONTHLY",
-          dayOfMonth: new Date(recurring.nextRunAt ?? date).getDate(),
-          nextRunAt: new Date(recurring.nextRunAt ?? date),
+          dayOfMonth: parseDateOnly(recurring.nextRunAt ?? date).getUTCDate(),
+          nextRunAt: parseDateOnly(recurring.nextRunAt ?? date),
           requiresConfirmation: recurring.requiresConfirmation ?? true,
           reminderDaysBefore: Number(recurring.reminderDaysBefore ?? 3),
         },

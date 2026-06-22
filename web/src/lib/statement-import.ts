@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { categorizeTransaction } from "@/lib/categorizer";
 import { money, nullableMoney } from "@/lib/money";
+import { parseDateOnly } from "@/lib/dates";
 import type { AIParsedStatement, ParsedStatement } from "@/lib/pdf-parser/types";
 
 type PersistOptions = {
@@ -59,9 +60,9 @@ export async function persistParsedStatement(
         analysisConfidence: options.analysisConfidence ?? null,
         analysisNotes: options.analysisNotes?.length ? options.analysisNotes.join("\n") : null,
         analysisStructuredJson: options.analysisStructuredJson ?? null,
-        periodStart: new Date(header.period_start),
-        periodEnd: new Date(header.period_end),
-        dueDate: new Date(header.due_date),
+        periodStart: parseDateOnly(header.period_start),
+        periodEnd: parseDateOnly(header.period_end),
+        dueDate: parseDateOnly(header.due_date),
         rawFilename: options.rawFilename,
         sourceHash: options.sourceHash,
       },
@@ -101,7 +102,7 @@ export async function persistParsedStatement(
           statementId: statement.id,
           userId: options.userId ?? null,
           categoryId: categoryId ?? null,
-          date: new Date(transaction.date),
+          date: parseDateOnly(transaction.date),
           merchantName: transaction.merchant_name,
           normalizedMerchant: transaction.merchant_name.trim().replace(/\s+/g, " "),
           voucherNumber: transaction.voucher_number,
@@ -149,7 +150,7 @@ export async function createTransactionsFromStoredAnalysis(
           statementId,
           userId: userId ?? null,
           categoryId: categoryId ?? null,
-          date: new Date(transaction.date),
+          date: parseDateOnly(transaction.date),
           merchantName: transaction.merchant_name,
           normalizedMerchant: transaction.merchant_name.trim().replace(/\s+/g, " "),
           voucherNumber: transaction.voucher_number,

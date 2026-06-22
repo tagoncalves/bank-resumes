@@ -11,6 +11,7 @@ import { EditTransactionModal } from "@/components/ui/edit-transaction-modal";
 import { TransactionFilter } from "@/components/transactions/TransactionFilter";
 import { CategoryPicker } from "@/components/ui/category-picker";
 import { MerchantNameEditor } from "@/components/ui/inline-transaction-editors";
+import { todayInputValue } from "@/lib/dates";
 
 type Category = { id: string; name: string; color: string | null };
 
@@ -76,7 +77,7 @@ function TransactionsInner() {
     const from = new Date(now.getFullYear(), now.getMonth() - currentMonths + 1, 1);
     return {
       dateFrom: `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, "0")}-01`,
-      dateTo: now.toISOString().slice(0, 10),
+      dateTo: todayInputValue(),
     };
   }
 

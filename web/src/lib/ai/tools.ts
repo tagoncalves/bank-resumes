@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { toMoneyNumber, toNullableMoneyNumber } from "@/lib/money";
+import { parseDateRangeEnd, parseDateRangeStart } from "@/lib/dates";
 
 // ─── Tool definitions (sent to the model) ──────────────────────────────────────
 
@@ -189,8 +190,8 @@ async function handleTransactions(userId: string, args: Record<string, unknown>)
 
   if (args.dateFrom || args.dateTo) {
     where.date = {};
-    if (args.dateFrom) (where.date as Record<string, unknown>).gte = new Date(args.dateFrom as string);
-    if (args.dateTo) (where.date as Record<string, unknown>).lte = new Date(args.dateTo as string);
+    if (args.dateFrom) (where.date as Record<string, unknown>).gte = parseDateRangeStart(args.dateFrom as string);
+    if (args.dateTo) (where.date as Record<string, unknown>).lte = parseDateRangeEnd(args.dateTo as string);
   }
   if (args.transactionType) where.transactionType = args.transactionType;
   if (args.origin === "statement") where.statementId = { not: null };

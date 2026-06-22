@@ -1,5 +1,6 @@
 import { parseARS, parsePct } from "./amounts";
 import { parseDate } from "./dates";
+import { todayInputValue } from "@/lib/dates";
 import type { ParsedStatement, ParsedHeader, ParsedBalanceSummary, ParsedTransaction } from "./types";
 
 export function parseGalicia(text: string, lines: string[]): ParsedStatement {
@@ -94,7 +95,7 @@ function parseHeader(text: string, lines: string[]): ParsedHeader {
     if (m) cardLastFour = m[1];
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInputValue();
   const { periodStart, periodEnd, dueDate } = extractHeaderDates(lines, today);
 
   return {

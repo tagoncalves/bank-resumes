@@ -5,6 +5,7 @@ import { type TrainingAnchor } from "@/lib/parser-training/deterministic-parser"
 import { runDeterministicParserForPdf } from "@/lib/parser-training/region-extractor"
 import { readPayslipPdf, readPendingPayslipPdf } from "@/lib/statement-pdf"
 import { money } from "@/lib/money"
+import { parseDateOnly } from "@/lib/dates"
 
 export async function POST(
   _request: NextRequest,
@@ -139,7 +140,7 @@ export async function POST(
         employerName: extractedFields.employer_name ?? payslip.employerName,
         employeeName: extractedFields.employee_name ?? payslip.employeeName,
         periodLabel: extractedFields.period_label ?? payslip.periodLabel,
-        payDate: extractedFields.pay_date ? new Date(extractedFields.pay_date) : payslip.payDate,
+        payDate: extractedFields.pay_date ? parseDateOnly(extractedFields.pay_date) : payslip.payDate,
         netAmount: extractedFields.net_amount_ars ? money(parseDecimal(extractedFields.net_amount_ars)) : payslip.netAmount,
         grossAmount: extractedFields.gross_amount_ars ? money(parseDecimal(extractedFields.gross_amount_ars)) : payslip.grossAmount,
         processingStatus: "PRELIMINARY",

@@ -1,5 +1,6 @@
 import { parseARS, parsePct } from "./amounts";
 import { parseDate } from "./dates";
+import { todayInputValue } from "@/lib/dates";
 import type { ParsedStatement, ParsedHeader, ParsedBalanceSummary, ParsedTransaction } from "./types";
 
 export function parseBBVA(text: string, lines: string[]): ParsedStatement {
@@ -92,7 +93,7 @@ function parseHeader(text: string, lines: string[]): ParsedHeader {
   const vencActM   = text.match(/VENCIMIENTO\s+ACTUAL[\s\S]{0,20}?(\d{2}-[A-Za-z]{3}-\d{2,4})/i);
   const cierreAntM = text.match(/CIERRE\s+ANTERIOR[\s\S]{0,20}?(\d{2}-[A-Za-z]{3}-\d{2,4})/i);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInputValue();
   return {
     bank_name: "BBVA",
     holder_name: holderName,

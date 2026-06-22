@@ -7,6 +7,7 @@ import { ocrImage } from "@/lib/ocr";
 import { readPendingPayslipPdf } from "@/lib/statement-pdf";
 import { createAiParserFromAnalysis } from "@/lib/ai/parser-generator";
 import { isPdfFilename } from "@/lib/parser-training/source-pdf";
+import { parseDateOnly } from "@/lib/dates";
 
 function aiConfigured() {
   return !!process.env.DEEPSEEK_API_KEY;
@@ -63,7 +64,7 @@ export async function processNextQueuedPayslip() {
         bankName: null,
         employeeName: analysis.payslip.employee_name,
         periodLabel: analysis.payslip.period_label,
-        payDate: new Date(analysis.payslip.pay_date),
+        payDate: parseDateOnly(analysis.payslip.pay_date),
         netAmount: money(analysis.payslip.net_amount_ars),
         grossAmount: analysis.payslip.gross_amount_ars == null ? null : money(analysis.payslip.gross_amount_ars),
         processingStatus,

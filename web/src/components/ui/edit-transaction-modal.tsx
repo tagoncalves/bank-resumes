@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { X } from "lucide-react";
+import { dateInputValue } from "@/lib/dates";
 
 type Category = { id: string; name: string };
 
@@ -33,7 +34,7 @@ export function EditTransactionModal({
   const [categories, setCategories] = useState<Category[]>([]);
 
   const [form, setForm] = useState({
-    date: new Date(transaction.date).toISOString().slice(0, 10),
+    date: dateInputValue(transaction.date),
     merchantName: transaction.normalizedMerchant || transaction.merchantName,
     amountArs: String(transaction.amountArs),
     amountUsd: transaction.amountUsd ? String(transaction.amountUsd) : "",

@@ -11,6 +11,7 @@ import { enforceRateLimit, getClientIp } from "@/lib/rate-limit";
 import { savePendingPayslipPdf, savePayslipPdf } from "@/lib/statement-pdf";
 import { createAiParserFromAnalysis, findMatchingAiParsers } from "@/lib/ai/parser-generator";
 import { isPdfFilename } from "@/lib/parser-training/source-pdf";
+import { parseDateOnly } from "@/lib/dates";
 
 const SUPPORTED_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 
@@ -93,7 +94,7 @@ export async function POST(req: NextRequest) {
         const incomeTransaction = await tx.transaction.create({
           data: {
             userId: session?.userId ?? null,
-            date: new Date(payDate),
+            date: parseDateOnly(payDate),
             merchantName: employerName,
             normalizedMerchant: employerName.replace(/\s+/g, " ").trim(),
             amountArs: money(netAmountNum),
@@ -111,7 +112,7 @@ export async function POST(req: NextRequest) {
             sourceHash: hash,
             employerName,
             periodLabel,
-            payDate: new Date(payDate),
+            payDate: parseDateOnly(payDate),
             netAmount: money(netAmountNum),
             currency,
             processingStatus: "COMPLETED",
@@ -311,7 +312,7 @@ export async function POST(req: NextRequest) {
         const incomeTransaction = await tx.transaction.create({
           data: {
             userId: session?.userId ?? null,
-            date: new Date(mappedPayslip.payDate),
+            date: parseDateOnly(mappedPayslip.payDate),
             merchantName: mappedPayslip.employerName,
             normalizedMerchant: mappedPayslip.employerName.replace(/\s+/g, " ").trim(),
             amountArs: money(mappedPayslip.netAmountArs),
@@ -333,7 +334,7 @@ export async function POST(req: NextRequest) {
           bankName: mappedPayslip.bankName,
           employeeName: mappedPayslip.employeeName,
           periodLabel: mappedPayslip.periodLabel,
-          payDate: new Date(mappedPayslip.payDate),
+          payDate: parseDateOnly(mappedPayslip.payDate),
           netAmount: money(mappedPayslip.netAmountArs),
           grossAmount: mappedPayslip.grossAmountArs == null ? null : money(mappedPayslip.grossAmountArs),
           processingStatus: mappedPayslip.processingStatus,

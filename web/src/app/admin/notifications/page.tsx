@@ -1,9 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { Bell, Mail, Play, Send } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { EmailTemplateEditor } from "@/components/admin/notifications/email-template-editor";
+
+const EmailTemplateEditor = dynamic(
+  () => import("@/components/admin/notifications/email-template-editor").then((mod) => mod.EmailTemplateEditor),
+  {
+    ssr: false,
+    loading: () => <div className="rounded border border-zinc-200 p-6 text-sm text-zinc-400">Cargando editor visual...</div>,
+  },
+);
 
 interface ChannelItem { id: string; name: string; type: string; enabled: boolean; isDefault: boolean; configJson: string | null }
 interface TemplateItem { id: string; eventType: string; subject: string | null; body: string; bodyFormat: string; enabled: boolean; channel: { name: string; type: string } }

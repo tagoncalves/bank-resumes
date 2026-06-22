@@ -20,6 +20,7 @@ export function formatDate(date: string | Date): string {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+    timeZone: "UTC",
   }).format(d);
 }
 
@@ -28,6 +29,7 @@ export function formatMonthYear(date: string | Date): string {
   return new Intl.DateTimeFormat("es-AR", {
     month: "short",
     year: "numeric",
+    timeZone: "UTC",
   }).format(d);
 }
 

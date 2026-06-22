@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin";
 import { money, toMoneyNumber, toNullableMoneyNumber, type MoneyValue } from "@/lib/money";
+import { parseDateOnly } from "@/lib/dates";
 
 function serializeRecurring(item: {
   amountArs: MoneyValue;
@@ -45,8 +46,8 @@ export async function POST(request: Request) {
       transactionType: body.transactionType ?? "DEBIT",
       categoryId: body.categoryId || null,
       frequency: "MONTHLY",
-      dayOfMonth: new Date(body.nextRunAt).getDate(),
-      nextRunAt: new Date(body.nextRunAt),
+      dayOfMonth: parseDateOnly(body.nextRunAt).getUTCDate(),
+      nextRunAt: parseDateOnly(body.nextRunAt),
       requiresConfirmation: body.requiresConfirmation ?? true,
       reminderDaysBefore: Number(body.reminderDaysBefore ?? 3),
       notes: body.notes || null,

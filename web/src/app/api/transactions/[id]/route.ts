@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { optionalMoneyInput, requireMoneyInput, toMoneyNumber, toNullableMoneyNumber } from "@/lib/money";
+import { parseDateOnly } from "@/lib/dates";
 
 export async function PATCH(
   req: NextRequest,
@@ -44,7 +45,7 @@ export async function PATCH(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: any = {};
   if (categoryId !== undefined) data.categoryId = categoryId;
-  if (date !== undefined) data.date = new Date(date);
+  if (date !== undefined) data.date = parseDateOnly(date);
   if (merchantName !== undefined) {
     data.merchantName = merchantName.trim();
     data.normalizedMerchant = merchantName.trim().replace(/\s+/g, " ");

@@ -10,6 +10,7 @@ import { ocrImage } from "@/lib/ocr";
 import { createAiParserFromAnalysis, deleteAiParsersForSource } from "@/lib/ai/parser-generator";
 import { readPayslipPdf as readStoredPayslipFile, savePayslipPdf } from "@/lib/statement-pdf";
 import { isPdfFilename } from "@/lib/parser-training/source-pdf";
+import { parseDateOnly } from "@/lib/dates";
 import fs from "fs";
 import path from "path";
 
@@ -58,7 +59,7 @@ async function createIncomeTransaction(
   return prisma.transaction.create({
     data: {
       userId: userId ?? null,
-      date: new Date(payDate),
+      date: parseDateOnly(payDate),
       merchantName: employerName,
       normalizedMerchant: employerName.replace(/\s+/g, " ").trim(),
       amountArs: money(netAmountArs),
@@ -222,7 +223,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
             bankName: parsed.bankName,
             employeeName: parsed.employeeName,
             periodLabel: parsed.periodLabel,
-            payDate: new Date(parsed.payDate),
+            payDate: parseDateOnly(parsed.payDate),
             netAmount: money(parsed.netAmountArs),
             grossAmount: parsed.grossAmountArs == null ? null : money(parsed.grossAmountArs),
             processingStatus: "COMPLETED",
@@ -261,7 +262,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           employerName: analysis.payslip.employer_name,
           employeeName: analysis.payslip.employee_name,
           periodLabel: analysis.payslip.period_label,
-          payDate: new Date(analysis.payslip.pay_date),
+          payDate: parseDateOnly(analysis.payslip.pay_date),
           netAmount: money(analysis.payslip.net_amount_ars),
           grossAmount: analysis.payslip.gross_amount_ars == null ? null : money(analysis.payslip.gross_amount_ars),
           processingStatus,
