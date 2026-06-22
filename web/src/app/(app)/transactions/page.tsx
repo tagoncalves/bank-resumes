@@ -13,6 +13,7 @@ import { CategoryPicker } from "@/components/ui/category-picker";
 import { MerchantNameEditor } from "@/components/ui/inline-transaction-editors";
 import { todayInputValue } from "@/lib/dates";
 import { formatMoneyInput, parseMoneyInput } from "@/lib/money-input";
+import { useDebouncedGridFilterParam } from "@/hooks/use-debounced-grid-filter-param";
 
 type Category = { id: string; name: string; color: string | null };
 
@@ -73,6 +74,13 @@ function TransactionsInner() {
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [prefill, setPrefill] = useState<TransactionPrefill | null>(null);
+  const resetPage = useCallback(() => setPage(1), []);
+  const searchFilter = useDebouncedGridFilterParam({ paramName: "search", paramValue: search, onApply: resetPage });
+  const amountMinFilter = useDebouncedGridFilterParam({ paramName: "amountMin", paramValue: amountMin, onApply: resetPage });
+  const amountMaxFilter = useDebouncedGridFilterParam({ paramName: "amountMax", paramValue: amountMax, onApply: resetPage });
+  const appliedSearch = searchFilter.appliedValue;
+  const appliedAmountMin = amountMinFilter.appliedValue;
+  const appliedAmountMax = amountMaxFilter.appliedValue;
 
   function computeDateRange(): { dateFrom: string; dateTo: string } {
     if (currentMonth) {
@@ -95,15 +103,15 @@ function TransactionsInner() {
     setLoading(true);
     const { dateFrom, dateTo } = computeDateRange();
     const params = new URLSearchParams({ page: String(page), limit: "50", sortBy, sortOrder });
-    if (search) params.set("search", search);
+    if (appliedSearch) params.set("search", appliedSearch);
     params.set("dateFrom", dateFrom);
     params.set("dateTo", dateTo);
     if (categoryIdsStr) params.set("categoryId", categoryIdsStr);
     if (originStr) params.set("origin", originStr);
     if (typeStr) params.set("type", typeStr);
     if (currency) params.set("currency", currency);
-    if (amountMin) params.set("amountMin", amountMin);
-    if (amountMax) params.set("amountMax", amountMax);
+    if (appliedAmountMin) params.set("amountMin", appliedAmountMin);
+    if (appliedAmountMax) params.set("amountMax", appliedAmountMax);
     const res = await fetch(`/api/transactions?${params}`);
     const json = await res.json();
     setTransactions(json.data ?? []);
@@ -116,11 +124,10 @@ function TransactionsInner() {
     setNetTotalUsd(json.netTotalUsd ?? 0);
     setLoading(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, search, sortBy, sortOrder, currentMonth, currentMonths, categoryIdsStr, originStr, typeStr, currency, amountMin, amountMax]);
+  }, [page, appliedSearch, sortBy, sortOrder, currentMonth, currentMonths, categoryIdsStr, originStr, typeStr, currency, appliedAmountMin, appliedAmountMax]);
 
   useEffect(() => {
-    const id = setTimeout(fetchTransactions, 300);
-    return () => clearTimeout(id);
+    fetchTransactions();
   }, [fetchTransactions]);
 
   useEffect(() => {
@@ -129,10 +136,10 @@ function TransactionsInner() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, sortBy, sortOrder, currentMonth, currentMonths, categoryIdsStr, originStr, typeStr, currency, amountMin, amountMax]);
+  }, [appliedSearch, sortBy, sortOrder, currentMonth, currentMonths, categoryIdsStr, originStr, typeStr, currency, appliedAmountMin, appliedAmountMax]);
 
   function updateFilterParam(key: string, value: string) {
-    const sp = new URLSearchParams(searchParams.toString());
+    const sp = new URLSearchParams(window.location.search || searchParams.toString());
     if (value) sp.set(key, value);
     else sp.delete(key);
     const query = sp.toString();
@@ -169,7 +176,7 @@ function TransactionsInner() {
   const shownNetTotal = showingUsdTotals ? netTotalUsd : netTotal;
   const formatShownMoney = showingUsdTotals ? formatUSD : formatARS;
   const isNegativeNet = shownNetTotal < 0;
-  const activeAdvancedFilters = !!currency || !!amountMin || !!amountMax;
+  const activeAdvancedFilters = !!currency || !!amountMinFilter.inputValue || !!amountMaxFilter.inputValue || !!appliedAmountMin || !!appliedAmountMax;
 
   return (
     <div className="space-y-4">
@@ -209,8 +216,8 @@ function TransactionsInner() {
             <input
               type="text"
               placeholder="Buscar comercio, banco, categoría o tarjeta..."
-              value={search}
-              onChange={(e) => updateFilterParam("search", e.target.value)}
+              value={searchFilter.inputValue}
+              onChange={(e) => searchFilter.setInputValue(e.target.value)}
               className="w-full rounded-md border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
             />
           </div>
@@ -236,8 +243,8 @@ function TransactionsInner() {
             inputMode="decimal"
             min="0"
             placeholder="Mín."
-            value={formatMoneyInput(amountMin)}
-            onChange={(e) => updateFilterParam("amountMin", parseMoneyInput(e.target.value))}
+            value={formatMoneyInput(amountMinFilter.inputValue)}
+            onChange={(e) => amountMinFilter.setInputValue(parseMoneyInput(e.target.value))}
             className="w-24 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
           />
           <input
@@ -245,13 +252,15 @@ function TransactionsInner() {
             inputMode="decimal"
             min="0"
             placeholder="Máx."
-            value={formatMoneyInput(amountMax)}
-            onChange={(e) => updateFilterParam("amountMax", parseMoneyInput(e.target.value))}
+            value={formatMoneyInput(amountMaxFilter.inputValue)}
+            onChange={(e) => amountMaxFilter.setInputValue(parseMoneyInput(e.target.value))}
             className="w-24 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
           />
-        {search && (
+        {(search || searchFilter.inputValue) && (
           <button
-            onClick={() => updateFilterParam("search", "")}
+            onClick={() => {
+              searchFilter.applyValue("");
+            }}
             className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700"
           >
             Limpiar búsqueda
@@ -260,7 +269,9 @@ function TransactionsInner() {
         {activeAdvancedFilters && (
           <button
             onClick={() => {
-              const sp = new URLSearchParams(searchParams.toString());
+              amountMinFilter.applyValue("");
+              amountMaxFilter.applyValue("");
+              const sp = new URLSearchParams(window.location.search || searchParams.toString());
               sp.delete("currency");
               sp.delete("amountMin");
               sp.delete("amountMax");
@@ -360,7 +371,7 @@ function TransactionsInner() {
                       </td>
                       <td className="pr-2 py-2.5">
                         <TransactionMenu
-                          onFilter={() => updateFilterParam("search", extractSearchTerm(t.normalizedMerchant || t.merchantName))}
+                          onFilter={() => searchFilter.applyValue(extractSearchTerm(t.normalizedMerchant || t.merchantName))}
                           onReuse={() => setPrefill({
                             merchantName: t.normalizedMerchant || t.merchantName,
                             amountArs: t.amountArs,
