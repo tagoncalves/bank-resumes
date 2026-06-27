@@ -5,7 +5,7 @@ import { parseStatementBuffer } from "@/lib/pdf-parser";
 import { getSession } from "@/lib/auth";
 import { createAIImportJob } from "@/lib/import-jobs";
 import { enforceRateLimit, getClientIp } from "@/lib/rate-limit";
-import { saveStatementPdf } from "@/lib/statement-pdf";
+import { createStoredFilename, saveStatementPdf } from "@/lib/statement-pdf";
 import { persistParsedStatement } from "@/lib/statement-import";
 import { extractPdfText } from "@/lib/pdf-parser";
 import { findMatchingAiParsers } from "@/lib/ai/parser-generator";
@@ -43,9 +43,10 @@ export async function POST(req: NextRequest) {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
   const hash = crypto.createHash("sha256").update(buffer).digest("hex");
+  const userWhere = session?.userId ? { userId: session.userId } : { userId: null };
 
-  // Duplicate check
-  const existing = await prisma.statement.findUnique({ where: { sourceHash: hash } });
+  // Duplicate check is scoped per user: different users can import the same PDF.
+  const existing = await prisma.statement.findFirst({ where: { ...userWhere, sourceHash: hash } });
   if (existing) {
     return NextResponse.json(
       { error: "DUPLICATE_STATEMENT", existingStatementId: existing.id },
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const existingJob = await prisma.importJob.findUnique({ where: { sourceHash: hash } });
+  const existingJob = await prisma.importJob.findFirst({ where: { ...userWhere, sourceHash: hash } });
   if (existingJob) {
     return NextResponse.json(
       {
@@ -101,6 +102,7 @@ export async function POST(req: NextRequest) {
       userId: session?.userId ?? null,
       sourceHash: hash,
       rawFilename: file.name,
+      storedFilename: createStoredFilename(file.name, ".pdf"),
       pdfBuffer: buffer,
     });
 
@@ -121,10 +123,12 @@ export async function POST(req: NextRequest) {
   const analysisConfidence: number | null = null;
   const analysisNotes: string[] = [];
 
+  const storedFilename = createStoredFilename(file.name, ".pdf");
   const statement = await persistParsedStatement(parsed, {
     userId: session?.userId ?? null,
     sourceHash: hash,
     rawFilename: file.name,
+    storedFilename,
     importMethod,
     processingStatus,
     analysisProvider,
@@ -132,7 +136,7 @@ export async function POST(req: NextRequest) {
     analysisNotes,
   });
 
-  saveStatementPdf(statement.id, buffer);
+  saveStatementPdf(statement.id, buffer, storedFilename);
 
   return NextResponse.json(
     {

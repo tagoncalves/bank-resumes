@@ -12,17 +12,17 @@ export async function GET(
 
   try {
     const { id } = await params
-    const payslip = await prisma.payslip.findUnique({ where: { id }, select: { rawFilename: true } })
+    const payslip = await prisma.payslip.findUnique({ where: { id }, select: { rawFilename: true, storedFilename: true } })
     if (!payslip) {
       return NextResponse.json({ error: "Recibo no encontrado" }, { status: 404 })
     }
     let buffer: Buffer
 
     try {
-      buffer = readPayslipPdf(id, payslip.rawFilename)
+      buffer = readPayslipPdf(id, payslip.rawFilename, payslip.storedFilename)
     } catch {
       try {
-        buffer = readPendingPayslipPdf(id, payslip.rawFilename)
+        buffer = readPendingPayslipPdf(id, payslip.rawFilename, payslip.storedFilename)
       } catch {
         return NextResponse.json({ error: "Archivo no encontrado" }, { status: 404 })
       }

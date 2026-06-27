@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { analyzeStatementWithDeepSeek } from "@/lib/ai/deepseek";
 import { analyzeWithRetry } from "@/lib/ai/retry";
 import { extractPdfText } from "@/lib/pdf-parser";
-import { readImportJobPdf, readStatementPdf, saveImportJobPdf, saveStatementPdf } from "@/lib/statement-pdf";
+import { createStoredFilename, readImportJobPdf, readStatementPdf, saveImportJobPdf, saveStatementPdf } from "@/lib/statement-pdf";
 import { persistParsedStatement, createTransactionsFromStoredAnalysis } from "@/lib/statement-import";
 import { createAiParserFromAnalysis } from "@/lib/ai/parser-generator";
 
@@ -10,6 +10,7 @@ type StartAIImportJobInput = {
   userId?: string | null;
   sourceHash: string;
   rawFilename: string;
+  storedFilename?: string | null;
   pdfBuffer: Buffer;
 };
 
@@ -17,6 +18,7 @@ type ExistingStatementReprocessInput = {
   statementId: string;
   userId?: string | null;
   rawFilename: string;
+  storedFilename?: string | null;
   pdfBuffer: Buffer;
 };
 
@@ -26,13 +28,14 @@ export async function createAIImportJob(input: StartAIImportJobInput) {
       userId: input.userId ?? null,
       sourceHash: input.sourceHash,
       rawFilename: input.rawFilename,
+      storedFilename: input.storedFilename ?? null,
       status: "QUEUED",
       importMethod: "AI",
       analysisProvider: "AI",
     },
   });
 
-  saveImportJobPdf(job.id, input.pdfBuffer);
+  saveImportJobPdf(job.id, input.pdfBuffer, job.storedFilename);
   return job;
 }
 
@@ -52,6 +55,7 @@ export async function reprocessStatementWithAI(statementId: string) {
       id: true,
       userId: true,
       sourceHash: true,
+      storedFilename: true,
       rawFilename: true,
       importMethod: true,
     },
@@ -83,13 +87,14 @@ export async function reprocessStatementWithAI(statementId: string) {
       statementId,
       sourceHash: `${statement.sourceHash}:reprocess:${Date.now()}`,
       rawFilename: statement.rawFilename,
+      storedFilename: createStoredFilename(statement.rawFilename, ".pdf"),
       status: "QUEUED",
       importMethod: "AI",
       analysisProvider: "AI",
     },
   });
 
-  saveImportJobPdf(job.id, readStatementPdf(statementId));
+  saveImportJobPdf(job.id, readStatementPdf(statementId, statement.storedFilename), job.storedFilename);
   return job;
 }
 
@@ -129,14 +134,16 @@ export async function processNextQueuedImportJob() {
         statementId: nextJob.statementId,
         userId: nextJob.userId ?? null,
         rawFilename: nextJob.rawFilename,
-        pdfBuffer: readImportJobPdf(nextJob.id),
+        storedFilename: nextJob.storedFilename,
+        pdfBuffer: readImportJobPdf(nextJob.id, nextJob.storedFilename),
       });
     } else {
       await processNewStatementJob(nextJob.id, {
         userId: nextJob.userId ?? null,
         sourceHash: nextJob.sourceHash,
         rawFilename: nextJob.rawFilename,
-        pdfBuffer: readImportJobPdf(nextJob.id),
+        storedFilename: nextJob.storedFilename,
+        pdfBuffer: readImportJobPdf(nextJob.id, nextJob.storedFilename),
       });
     }
 
@@ -163,6 +170,7 @@ async function processNewStatementJob(jobId: string, input: StartAIImportJobInpu
     userId: input.userId ?? null,
     sourceHash: input.sourceHash,
     rawFilename: input.rawFilename,
+    storedFilename: createStoredFilename(input.rawFilename, ".pdf"),
     importMethod: "AI",
     processingStatus,
     analysisProvider: "AI",
@@ -173,7 +181,7 @@ async function processNewStatementJob(jobId: string, input: StartAIImportJobInpu
     analysisStructuredJson: analysis.artifacts.parsed_result_json,
   });
 
-  saveStatementPdf(statement.id, input.pdfBuffer);
+  saveStatementPdf(statement.id, input.pdfBuffer, statement.storedFilename);
 
   // Generate AI parser
   const pdfText = await extractPdfText(input.pdfBuffer);

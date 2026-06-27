@@ -8,6 +8,7 @@ type PersistOptions = {
   userId?: string | null;
   sourceHash: string;
   rawFilename: string;
+  storedFilename?: string | null;
   importMethod: "NATIVE" | "AI";
   processingStatus?: "COMPLETED" | "REVIEW_REQUIRED" | "PRELIMINARY";
   analysisProvider?: string | null;
@@ -64,6 +65,7 @@ export async function persistParsedStatement(
         periodEnd: parseDateOnly(header.period_end),
         dueDate: parseDateOnly(header.due_date),
         rawFilename: options.rawFilename,
+        storedFilename: options.storedFilename ?? null,
         sourceHash: options.sourceHash,
       },
     });

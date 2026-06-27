@@ -8,7 +8,7 @@ import { extractPdfText } from "@/lib/pdf-parser";
 import { parsePayslipBuffer } from "@/lib/payslip-parser";
 import { ocrImage } from "@/lib/ocr";
 import { enforceRateLimit, getClientIp } from "@/lib/rate-limit";
-import { savePendingPayslipPdf, savePayslipPdf } from "@/lib/statement-pdf";
+import { createStoredFilename, savePendingPayslipPdf, savePayslipPdf } from "@/lib/statement-pdf";
 import { createAiParserFromAnalysis, findMatchingAiParsers } from "@/lib/ai/parser-generator";
 import { isPdfFilename } from "@/lib/parser-training/source-pdf";
 import { parseDateOnly } from "@/lib/dates";
@@ -51,8 +51,10 @@ export async function POST(req: NextRequest) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const hash = crypto.createHash("sha256").update(buffer).digest("hex");
+    const userWhere = session?.userId ? { userId: session.userId } : { userId: null };
+    const storedFilename = createStoredFilename(file.name);
 
-    const existing = await prisma.payslip.findUnique({ where: { sourceHash: hash } });
+    const existing = await prisma.payslip.findFirst({ where: { ...userWhere, sourceHash: hash } });
     if (existing) {
       return NextResponse.json(
         {
@@ -109,6 +111,7 @@ export async function POST(req: NextRequest) {
         const payslip = await tx.payslip.create({
           data: {
             rawFilename: file.name,
+            storedFilename,
             sourceHash: hash,
             employerName,
             periodLabel,
@@ -125,7 +128,7 @@ export async function POST(req: NextRequest) {
         return { payslip, incomeTransaction };
       });
 
-      savePayslipPdf(created.payslip.id, buffer, file.name);
+      savePayslipPdf(created.payslip.id, buffer, file.name, storedFilename);
 
       return NextResponse.json(
         {
@@ -148,13 +151,14 @@ export async function POST(req: NextRequest) {
       const queuedPayslip = await prisma.payslip.create({
         data: {
           rawFilename: file.name,
+          storedFilename,
           sourceHash: hash,
           processingStatus: "QUEUED",
           analysisProvider: "AI",
           ...(session?.userId ? { user: { connect: { id: session.userId } } } : {}),
         },
       });
-      savePendingPayslipPdf(queuedPayslip.id, buffer, file.name);
+      savePendingPayslipPdf(queuedPayslip.id, buffer, file.name, storedFilename);
 
       return NextResponse.json(
         {
@@ -219,13 +223,14 @@ export async function POST(req: NextRequest) {
         const queuedPayslip = await prisma.payslip.create({
           data: {
             rawFilename: file.name,
+            storedFilename,
             sourceHash: hash,
             processingStatus: "QUEUED",
             analysisProvider: "AI",
             ...(session?.userId ? { user: { connect: { id: session.userId } } } : {}),
           },
         });
-        savePendingPayslipPdf(queuedPayslip.id, buffer, file.name);
+        savePendingPayslipPdf(queuedPayslip.id, buffer, file.name, storedFilename);
         return NextResponse.json(
           {
             payslipId: queuedPayslip.id,
@@ -269,6 +274,7 @@ export async function POST(req: NextRequest) {
         const queuedPayslip = await prisma.payslip.create({
           data: {
             rawFilename: file.name,
+            storedFilename,
             sourceHash: hash,
             processingStatus: "QUEUED",
             analysisProvider: "AI",
@@ -282,7 +288,7 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        savePendingPayslipPdf(queuedPayslip.id, buffer, file.name);
+        savePendingPayslipPdf(queuedPayslip.id, buffer, file.name, storedFilename);
 
         return NextResponse.json(
           {
@@ -329,6 +335,7 @@ export async function POST(req: NextRequest) {
       const payslip = await tx.payslip.create({
         data: {
           rawFilename: file.name,
+          storedFilename,
           sourceHash: hash,
           employerName: mappedPayslip.employerName,
           bankName: mappedPayslip.bankName,
@@ -356,7 +363,7 @@ export async function POST(req: NextRequest) {
       return { payslip, incomeTransactionId };
     });
 
-    savePayslipPdf(created.payslip.id, buffer, file.name);
+    savePayslipPdf(created.payslip.id, buffer, file.name, storedFilename);
 
     const responseData: Record<string, unknown> = {
       payslipId: created.payslip.id,

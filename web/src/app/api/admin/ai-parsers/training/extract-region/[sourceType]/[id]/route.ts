@@ -21,14 +21,14 @@ export async function POST(
     }
 
     const sourceRecord = sourceType === "PAYSLIP"
-      ? await prisma.payslip.findUnique({ where: { id }, select: { rawFilename: true } })
-      : await prisma.statement.findUnique({ where: { id }, select: { rawFilename: true } });
+      ? await prisma.payslip.findUnique({ where: { id }, select: { rawFilename: true, storedFilename: true } })
+      : await prisma.statement.findUnique({ where: { id }, select: { rawFilename: true, storedFilename: true } });
 
     if (!sourceRecord) {
       return NextResponse.json({ error: "Archivo fuente no encontrado" }, { status: 404 });
     }
 
-    const buffer = readTrainingSourcePdf(sourceType, id, sourceRecord.rawFilename);
+    const buffer = readTrainingSourcePdf(sourceType, id, sourceRecord.rawFilename, sourceRecord.storedFilename);
     const rawText = await extractRegionTextFromPdf(buffer, {
       pageNumber: Number(pageNumber),
       x0: Number(x0),

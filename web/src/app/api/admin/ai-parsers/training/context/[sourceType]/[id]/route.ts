@@ -32,7 +32,7 @@ export async function GET(
         return NextResponse.json({ error: "Recibo no encontrado" }, { status: 404 })
       }
 
-      const sourceBuffer = readTrainingSourcePdf(sourceType, id, payslip.rawFilename)
+      const sourceBuffer = readTrainingSourcePdf(sourceType, id, payslip.rawFilename, payslip.storedFilename)
       const pages = isPdfFilename(payslip.rawFilename)
         ? await extractPdfPageDimensions(sourceBuffer)
         : await (async () => {
@@ -71,7 +71,7 @@ export async function GET(
         return NextResponse.json({ error: "Estado de cuenta no encontrado" }, { status: 404 })
       }
 
-      const sourceBuffer = readTrainingSourcePdf(sourceType, id, statement.rawFilename)
+      const sourceBuffer = readTrainingSourcePdf(sourceType, id, statement.rawFilename, statement.storedFilename)
       const pages = await extractPdfPageDimensions(sourceBuffer)
 
       return NextResponse.json({

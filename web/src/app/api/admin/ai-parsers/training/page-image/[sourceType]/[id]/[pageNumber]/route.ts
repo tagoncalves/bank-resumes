@@ -22,14 +22,14 @@ export async function GET(
     }
 
     const sourceRecord = sourceType === "PAYSLIP"
-      ? await prisma.payslip.findUnique({ where: { id }, select: { rawFilename: true } })
-      : await prisma.statement.findUnique({ where: { id }, select: { rawFilename: true } });
+      ? await prisma.payslip.findUnique({ where: { id }, select: { rawFilename: true, storedFilename: true } })
+      : await prisma.statement.findUnique({ where: { id }, select: { rawFilename: true, storedFilename: true } });
 
     if (!sourceRecord) {
       return NextResponse.json({ error: "Archivo fuente no encontrado" }, { status: 404 });
     }
 
-    const pdfBuffer = readTrainingSourcePdf(sourceType, id, sourceRecord.rawFilename);
+    const pdfBuffer = readTrainingSourcePdf(sourceType, id, sourceRecord.rawFilename, sourceRecord.storedFilename);
 
     if (!isPdfFilename(sourceRecord.rawFilename)) {
       if (pageIndex !== 1) {

@@ -8,34 +8,34 @@ datasource db {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  username     String    @unique
-  passwordHash String
-  role         String    @default("USER") // "ADMIN" | "USER"
-  displayName  String?
-  createdAt    DateTime  @default(now())
+  id             String    @id @default(cuid())
+  username       String    @unique
+  passwordHash   String
+  role           String    @default("USER") // "ADMIN" | "USER"
+  displayName    String?
+  createdAt      DateTime  @default(now())
   aiMisuseCount  Int       @default(0)
   aiBlockedUntil DateTime?
   aiBlockLevel   Int       @default(0)
 
-  statements   Statement[]
-  payslips     Payslip[]
-  transactions Transaction[]
-  importJobs   ImportJob[]
-  reviewedStatements Statement[] @relation("ReviewedStatements")
-  aiBans AiBan[]
-  aiBanPardons AiBan[] @relation("BanPardon")
-  aiParserReviews AiParser[] @relation("AiParserReviewer")
-  parserTrainingAnchors ParserTrainingAnchor[]
+  statements              Statement[]
+  payslips                Payslip[]
+  transactions            Transaction[]
+  importJobs              ImportJob[]
+  reviewedStatements      Statement[]              @relation("ReviewedStatements")
+  aiBans                  AiBan[]
+  aiBanPardons            AiBan[]                  @relation("BanPardon")
+  aiParserReviews         AiParser[]               @relation("AiParserReviewer")
+  parserTrainingAnchors   ParserTrainingAnchor[]
   notificationPreferences NotificationPreference[]
-  notificationEvents NotificationEvent[]
-  recurringTransactions RecurringTransaction[]
+  notificationEvents      NotificationEvent[]
+  recurringTransactions   RecurringTransaction[]
 }
 
 model AiBan {
   id           String    @id @default(cuid())
   userId       String
-  level        Int       // 1=5min, 2=1h, 3=until midnight, 4=permanent
+  level        Int // 1=5min, 2=1h, 3=until midnight, 4=permanent
   status       String    @default("ACTIVE") // ACTIVE | EXPIRED | PARDONED
   reason       String?
   bannedAt     DateTime  @default(now())
@@ -43,7 +43,7 @@ model AiBan {
   pardonedAt   DateTime?
   pardonedById String?
 
-  user      User  @relation(fields: [userId], references: [id])
+  user       User  @relation(fields: [userId], references: [id])
   pardonedBy User? @relation("BanPardon", fields: [pardonedById], references: [id])
 
   @@index([userId, status])
@@ -51,33 +51,35 @@ model AiBan {
 }
 
 model Payslip {
-  id                   String   @id @default(cuid())
-  userId               String?
-  incomeTransactionId  String?  @unique
-  rawFilename          String
-  sourceHash           String   @unique
-  bankName             String?
-  employerName         String?
-  employeeName         String?
-  periodLabel          String?
-  payDate              DateTime?
-  netAmount            Decimal?
-  grossAmount          Decimal?
-  currency             String   @default("ARS")
-  processingStatus     String   @default("COMPLETED") // "COMPLETED" | "REVIEW_REQUIRED" | "QUEUED" | "ANALYZING" | "FAILED" | "PRELIMINARY"
-  analysisProvider     String?
-  analysisModel        String?
-  analysisPromptVersion String?
-  analysisConfidence   Float?
-  analysisNotes        String?
+  id                     String    @id @default(cuid())
+  userId                 String?
+  incomeTransactionId    String?   @unique
+  rawFilename            String
+  storedFilename         String?
+  sourceHash             String
+  bankName               String?
+  employerName           String?
+  employeeName           String?
+  periodLabel            String?
+  payDate                DateTime?
+  netAmount              Decimal?
+  grossAmount            Decimal?
+  currency               String    @default("ARS")
+  processingStatus       String    @default("COMPLETED") // "COMPLETED" | "REVIEW_REQUIRED" | "QUEUED" | "ANALYZING" | "FAILED" | "PRELIMINARY"
+  analysisProvider       String?
+  analysisModel          String?
+  analysisPromptVersion  String?
+  analysisConfidence     Float?
+  analysisNotes          String?
   analysisStructuredJson String?
-  uploadedAt           DateTime @default(now())
+  uploadedAt             DateTime  @default(now())
 
-  user              User?        @relation(fields: [userId], references: [id])
-  incomeTransaction Transaction? @relation("PayslipIncomeTransaction", fields: [incomeTransactionId], references: [id])
-  aiParsers         AiParser[]
+  user                  User?                  @relation(fields: [userId], references: [id])
+  incomeTransaction     Transaction?           @relation("PayslipIncomeTransaction", fields: [incomeTransactionId], references: [id])
+  aiParsers             AiParser[]
   parserTrainingAnchors ParserTrainingAnchor[]
 
+  @@unique([userId, sourceHash])
   @@index([userId])
   @@index([uploadedAt])
 }
@@ -113,96 +115,110 @@ model Category {
   color     String?
   createdAt DateTime @default(now())
 
-  transactions Transaction[]
+  transactions          Transaction[]
   recurringTransactions RecurringTransaction[]
 }
 
-model Statement {
-  id              String   @id @default(cuid())
-  userId          String?
-  cardId          String
-  bankName        String
-  importMethod    String   @default("NATIVE") // "NATIVE" | "AI"
-  processingStatus String  @default("COMPLETED") // "COMPLETED" | "REVIEW_REQUIRED" | "REJECTED" | "PRELIMINARY" | "QUEUED"
-  parserVersion   String?
-  analysisProvider String?
-  analysisModel   String?
-  analysisPromptVersion String?
-  analysisConfidence Float?
-  analysisNotes   String?
-  analysisStructuredJson String?
-  reviewedById    String?
-  reviewedAt      DateTime?
-  reviewNotes     String?
-  periodStart     DateTime
-  periodEnd       DateTime
-  dueDate         DateTime
-  statementNumber String?
-  uploadedAt      DateTime @default(now())
-  rawFilename     String
-  sourceHash      String   @unique
+model Currency {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  symbol    String?
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
 
-  user           User?          @relation(fields: [userId], references: [id])
-  reviewedBy     User?          @relation("ReviewedStatements", fields: [reviewedById], references: [id])
-  card           Card           @relation(fields: [cardId], references: [id])
-  balanceSummary BalanceSummary?
-  transactions   Transaction[]
-  importJobs     ImportJob[]
-  aiParsers      AiParser[]
+model Statement {
+  id                     String    @id @default(cuid())
+  userId                 String?
+  cardId                 String
+  bankName               String
+  importMethod           String    @default("NATIVE") // "NATIVE" | "AI"
+  processingStatus       String    @default("COMPLETED") // "COMPLETED" | "REVIEW_REQUIRED" | "REJECTED" | "PRELIMINARY" | "QUEUED"
+  parserVersion          String?
+  analysisProvider       String?
+  analysisModel          String?
+  analysisPromptVersion  String?
+  analysisConfidence     Float?
+  analysisNotes          String?
+  analysisStructuredJson String?
+  reviewedById           String?
+  reviewedAt             DateTime?
+  reviewNotes            String?
+  periodStart            DateTime
+  periodEnd              DateTime
+  dueDate                DateTime
+  statementNumber        String?
+  uploadedAt             DateTime  @default(now())
+  rawFilename            String
+  storedFilename         String?
+  sourceHash             String
+
+  user                  User?                  @relation(fields: [userId], references: [id])
+  reviewedBy            User?                  @relation("ReviewedStatements", fields: [reviewedById], references: [id])
+  card                  Card                   @relation(fields: [cardId], references: [id])
+  balanceSummary        BalanceSummary?
+  transactions          Transaction[]
+  importJobs            ImportJob[]
+  aiParsers             AiParser[]
   parserTrainingAnchors ParserTrainingAnchor[]
 
+  @@unique([userId, sourceHash])
   @@index([cardId, periodEnd])
   @@index([userId])
   @@index([processingStatus])
 }
 
 model ImportJob {
-  id                 String    @id @default(cuid())
-  userId             String?
-  statementId        String?
-  sourceHash         String    @unique
-  rawFilename        String
-  status             String    @default("QUEUED") // "QUEUED" | "ANALYZING" | "COMPLETED" | "REVIEW_REQUIRED" | "FAILED"
-  bankName           String?
-  importMethod       String    @default("AI") // "AI"
-  analysisProvider   String?
-  analysisModel      String?
+  id                    String    @id @default(cuid())
+  userId                String?
+  statementId           String?
+  sourceHash            String
+  rawFilename           String
+  storedFilename        String?
+  status                String    @default("QUEUED") // "QUEUED" | "ANALYZING" | "COMPLETED" | "REVIEW_REQUIRED" | "FAILED"
+  bankName              String?
+  importMethod          String    @default("AI") // "AI"
+  analysisProvider      String?
+  analysisModel         String?
   analysisPromptVersion String?
-  analysisConfidence Float?
-  analysisNotes      String?
-  sourceTextExcerpt  String?
-  aiRequestPayload   String?
-  aiRawResponse      String?
-  aiParsedResult     String?
-  attemptCount       Int       @default(0)
-  lastProcessedAt    DateTime?
-  errorMessage       String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  analysisConfidence    Float?
+  analysisNotes         String?
+  sourceTextExcerpt     String?
+  aiRequestPayload      String?
+  aiRawResponse         String?
+  aiParsedResult        String?
+  attemptCount          Int       @default(0)
+  lastProcessedAt       DateTime?
+  errorMessage          String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   user      User?      @relation(fields: [userId], references: [id])
   statement Statement? @relation(fields: [statementId], references: [id])
 
+  @@unique([userId, sourceHash])
   @@index([userId])
   @@index([status])
 }
 
 model BalanceSummary {
-  id                   String  @id @default(cuid())
-  statementId          String  @unique
-  currency             String  @default("ARS")
-  previousBalance      Decimal @default(0)
+  id                   String   @id @default(cuid())
+  statementId          String   @unique
+  currency             String   @default("ARS")
+  previousBalance      Decimal  @default(0)
   previousBalanceUsd   Decimal?
-  paymentsApplied      Decimal @default(0)
-  totalConsumption     Decimal @default(0)
-  commissionCuentaFull Decimal @default(0)
-  selloTax             Decimal @default(0)
-  ivaTax               Decimal @default(0)
-  iibbTax              Decimal @default(0)
-  financingInterest    Decimal @default(0)
-  currentBalance       Decimal @default(0)
+  paymentsApplied      Decimal  @default(0)
+  totalConsumption     Decimal  @default(0)
+  commissionCuentaFull Decimal  @default(0)
+  selloTax             Decimal  @default(0)
+  ivaTax               Decimal  @default(0)
+  iibbTax              Decimal  @default(0)
+  financingInterest    Decimal  @default(0)
+  currentBalance       Decimal  @default(0)
   currentBalanceUsd    Decimal?
-  minimumPayment       Decimal @default(0)
+  minimumPayment       Decimal  @default(0)
   tnaArs               Float?
   temArs               Float?
   teaArs               Float?
@@ -214,7 +230,7 @@ model BalanceSummary {
 }
 
 model Transaction {
-  id                 String   @id @default(cuid())
+  id                 String    @id @default(cuid())
   statementId        String?
   userId             String?
   categoryId         String?
@@ -227,17 +243,17 @@ model Transaction {
   amountArs          Decimal
   amountUsd          Decimal?
   cardLastFour       String?
-  transactionType    String   @default("DEBIT")
-  source             String   @default("IMPORTED") // "IMPORTED" | "MANUAL"
-  isInstallment      Boolean  @default(false)
-  isReversal         Boolean  @default(false)
+  transactionType    String    @default("DEBIT")
+  source             String    @default("IMPORTED") // "IMPORTED" | "MANUAL"
+  isInstallment      Boolean   @default(false)
+  isReversal         Boolean   @default(false)
   deletedAt          DateTime?
-  createdAt          DateTime @default(now())
+  createdAt          DateTime  @default(now())
 
-  statement Statement?  @relation(fields: [statementId], references: [id], onDelete: Cascade)
-  user      User?       @relation(fields: [userId], references: [id])
-  category  Category?   @relation(fields: [categoryId], references: [id])
-  payslip   Payslip?    @relation("PayslipIncomeTransaction")
+  statement            Statement?                       @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  user                 User?                            @relation(fields: [userId], references: [id])
+  category             Category?                        @relation(fields: [categoryId], references: [id])
+  payslip              Payslip?                         @relation("PayslipIncomeTransaction")
   recurringOccurrences RecurringTransactionOccurrence[]
 
   @@index([statementId])
@@ -247,14 +263,14 @@ model Transaction {
 }
 
 model NotificationChannel {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  type        String
-  enabled     Boolean  @default(true)
-  isDefault   Boolean  @default(false)
-  configJson  String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  name       String   @unique
+  type       String
+  enabled    Boolean  @default(true)
+  isDefault  Boolean  @default(false)
+  configJson String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   templates  NotificationTemplate[]
   deliveries NotificationDelivery[]
@@ -296,16 +312,16 @@ model NotificationPreference {
 
 model NotificationEvent {
   id           String   @id @default(cuid())
-  userId        String?
-  eventType     String
-  status        String   @default("PENDING")
-  payloadJson   String
-  scheduledFor  DateTime @default(now())
-  dedupeKey     String?  @unique
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  userId       String?
+  eventType    String
+  status       String   @default("PENDING")
+  payloadJson  String
+  scheduledFor DateTime @default(now())
+  dedupeKey    String?  @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  user       User? @relation(fields: [userId], references: [id])
+  user       User?                  @relation(fields: [userId], references: [id])
   deliveries NotificationDelivery[]
 
   @@index([status, scheduledFor])
@@ -313,22 +329,22 @@ model NotificationEvent {
 }
 
 model NotificationDelivery {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   eventId           String
   channelId         String
-  status            String   @default("PENDING")
+  status            String    @default("PENDING")
   recipient         String
   renderedSubject   String?
   renderedBody      String
   providerMessageId String?
-  attemptCount      Int      @default(0)
+  attemptCount      Int       @default(0)
   lastError         String?
   sentAt            DateTime?
   nextRetryAt       DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  event   NotificationEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event   NotificationEvent   @relation(fields: [eventId], references: [id], onDelete: Cascade)
   channel NotificationChannel @relation(fields: [channelId], references: [id])
 
   @@index([status, nextRetryAt])
@@ -336,31 +352,31 @@ model NotificationDelivery {
 }
 
 model RecurringTransaction {
-  id                   String   @id @default(cuid())
+  id                   String    @id @default(cuid())
   userId               String
   merchantName         String
   amountArs            Decimal
   amountUsd            Decimal?
-  currency             String   @default("ARS")
+  currency             String    @default("ARS")
   transactionType      String
   categoryId           String?
-  frequency            String   @default("MONTHLY")
-  interval             Int      @default(1)
+  frequency            String    @default("MONTHLY")
+  interval             Int       @default(1)
   anchorDate           DateTime?
   dayOfMonth           Int?
   nextRunAt            DateTime
   endDate              DateTime?
   lastGeneratedAt      DateTime?
-  requiresConfirmation Boolean  @default(true)
-  reminderDaysBefore   Int      @default(3)
-  enabled              Boolean  @default(true)
+  requiresConfirmation Boolean   @default(true)
+  reminderDaysBefore   Int       @default(3)
+  enabled              Boolean   @default(true)
   notificationChannels String?
   notes                String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
-  user        User @relation(fields: [userId], references: [id])
-  category    Category? @relation(fields: [categoryId], references: [id])
+  user        User                             @relation(fields: [userId], references: [id])
+  category    Category?                        @relation(fields: [categoryId], references: [id])
   occurrences RecurringTransactionOccurrence[]
 
   @@index([userId, enabled])
@@ -368,53 +384,52 @@ model RecurringTransaction {
 }
 
 model RecurringTransactionOccurrence {
-  id                     String   @id @default(cuid())
-  recurringTransactionId  String
+  id                     String    @id @default(cuid())
+  recurringTransactionId String
   dueDate                DateTime
-  status                 String   @default("PENDING")
+  status                 String    @default("PENDING")
   confirmationTokenHash  String?
   expiresAt              DateTime?
   transactionId          String?
   notificationEventId    String?
   generationType         String?
   createdByMode          String?
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   recurringTransaction RecurringTransaction @relation(fields: [recurringTransactionId], references: [id], onDelete: Cascade)
-  transaction Transaction? @relation(fields: [transactionId], references: [id])
+  transaction          Transaction?         @relation(fields: [transactionId], references: [id])
 
+  @@unique([recurringTransactionId, dueDate])
   @@index([status, dueDate])
   @@index([recurringTransactionId])
-  @@unique([recurringTransactionId, dueDate])
 }
 
 model AiParser {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   payslipId       String?
   statementId     String?
   parserCode      String
   filePath        String
   formatSignature String
-  sourceType      String   // "PAYSLIP" | "STATEMENT"
+  sourceType      String // "PAYSLIP" | "STATEMENT"
   bankName        String?
   employerName    String?
-  status          String   @default("PENDING_REVIEW") // PENDING_REVIEW | APPROVED | REJECTED
+  status          String    @default("PENDING_REVIEW") // PENDING_REVIEW | APPROVED | REJECTED
   confidence      Float?
   notes           String?
   reviewedById    String?
   reviewedAt      DateTime?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
 
   reviewedBy User? @relation("AiParserReviewer", fields: [reviewedById], references: [id])
 
-  payslip   Payslip?   @relation(fields: [payslipId], references: [id])
-  statement Statement? @relation(fields: [statementId], references: [id])
+  payslip               Payslip?               @relation(fields: [payslipId], references: [id])
+  statement             Statement?             @relation(fields: [statementId], references: [id])
+  parserTrainingAnchors ParserTrainingAnchor[]
 
   @@index([status])
   @@index([formatSignature])
-  parserTrainingAnchors ParserTrainingAnchor[]
-
   @@index([sourceType])
 }
 
@@ -423,14 +438,14 @@ model ParserTrainingAnchor {
   aiParserId    String?
   payslipId     String?
   statementId   String?
-  sourceType    String   // PAYSLIP | STATEMENT
+  sourceType    String // PAYSLIP | STATEMENT
   fieldName     String
   pageNumber    Int
   x0            Float
   top           Float
   x1            Float
   bottom        Float
-  mode          String   // region_exact | right_of_label | below_label | row_capture
+  mode          String // region_exact | right_of_label | below_label | row_capture
   rawText       String?
   confirmedText String?
   labelText     String?
@@ -438,10 +453,10 @@ model ParserTrainingAnchor {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  aiParser  AiParser? @relation(fields: [aiParserId], references: [id], onDelete: Cascade)
-  payslip   Payslip?  @relation(fields: [payslipId], references: [id], onDelete: Cascade)
+  aiParser  AiParser?  @relation(fields: [aiParserId], references: [id], onDelete: Cascade)
+  payslip   Payslip?   @relation(fields: [payslipId], references: [id], onDelete: Cascade)
   statement Statement? @relation(fields: [statementId], references: [id], onDelete: Cascade)
-  trainedBy User?     @relation(fields: [trainedById], references: [id])
+  trainedBy User?      @relation(fields: [trainedById], references: [id])
 
   @@index([sourceType])
   @@index([aiParserId])

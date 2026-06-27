@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { getPayslipContentType, readPayslipPdf } from "@/lib/statement-pdf";
+import { buildDownloadFilename, getPayslipContentType, getPayslipFileExtension, readPayslipPdf } from "@/lib/statement-pdf";
 
 export async function GET(
   _req: NextRequest,
@@ -16,7 +16,16 @@ export async function GET(
 
   const payslip = await prisma.payslip.findUnique({
     where: { id },
-    select: { rawFilename: true, userId: true },
+    select: {
+      rawFilename: true,
+      storedFilename: true,
+      userId: true,
+      bankName: true,
+      employerName: true,
+      payDate: true,
+      periodLabel: true,
+      user: { select: { username: true, displayName: true } },
+    },
   });
 
   if (!payslip) {
@@ -28,11 +37,18 @@ export async function GET(
   }
 
   try {
-    const buffer = readPayslipPdf(id, payslip.rawFilename);
+    const buffer = readPayslipPdf(id, payslip.rawFilename, payslip.storedFilename);
+    const filename = buildDownloadFilename({
+      bankName: payslip.bankName ?? payslip.employerName,
+      type: "recibo",
+      period: payslip.payDate ?? payslip.periodLabel,
+      username: payslip.user?.displayName ?? payslip.user?.username ?? session.username,
+      extension: getPayslipFileExtension(payslip.rawFilename, payslip.storedFilename),
+    });
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": getPayslipContentType(payslip.rawFilename),
-        "Content-Disposition": `attachment; filename="${payslip.rawFilename}"`,
+        "Content-Disposition": `attachment; filename="${filename}"`,
       },
     });
   } catch {

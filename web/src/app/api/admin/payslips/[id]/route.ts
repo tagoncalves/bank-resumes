@@ -25,17 +25,16 @@ async function guardAdmin() {
   return session;
 }
 
-function readPayslipPdf(id: string): Buffer {
-  for (const dir of [PAYSLIP_DIR, PENDING_DIR]) {
-    const filePath = path.join(dir, `${id}.pdf`);
-    if (fs.existsSync(filePath)) return fs.readFileSync(filePath);
-  }
-  throw new Error("PDF no encontrado para este recibo");
-}
-
-function deletePayslipFiles(id: string) {
+function deletePayslipFiles(id: string, storedFilename?: string | null) {
   const extensions = [".pdf", ".png", ".jpg", ".jpeg", ".webp"];
   for (const dir of [PAYSLIP_DIR, PENDING_DIR]) {
+    if (storedFilename) {
+      const storedPath = path.join(dir, storedFilename.replace(/[^a-zA-Z0-9._-]/g, "_"));
+      if (fs.existsSync(storedPath)) {
+        try { fs.unlinkSync(storedPath); } catch { /* ignore */ }
+      }
+    }
+
     for (const ext of extensions) {
       const filePath = path.join(dir, `${id}${ext}`);
       if (fs.existsSync(filePath)) {
@@ -204,7 +203,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     // Process inline
     try {
-      const buffer = readStoredPayslipFile(id, payslip.rawFilename);
+      const buffer = readStoredPayslipFile(id, payslip.rawFilename, payslip.storedFilename);
       let pdfText: string;
 
       // Try native parser
@@ -235,7 +234,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           },
         });
 
-        savePayslipPdf(id, buffer, payslip.rawFilename);
+        savePayslipPdf(id, buffer, payslip.rawFilename, payslip.storedFilename);
         return NextResponse.json({ success: true, processingStatus: "COMPLETED", method: "native" });
       } catch {
         // Native failed — try AI
@@ -290,7 +289,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         parserFields: analysis.parserFields,
       });
 
-      savePayslipPdf(id, buffer, payslip.rawFilename);
+      savePayslipPdf(id, buffer, payslip.rawFilename, payslip.storedFilename);
       return NextResponse.json({ success: true, processingStatus, method: "ai" });
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Error al reprocesar";
@@ -308,7 +307,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     await prisma.$transaction((tx) => deletePayslipWithIncomeTransaction(tx, id, payslip.incomeTransactionId));
 
-    deletePayslipFiles(id);
+    deletePayslipFiles(id, payslip.storedFilename);
 
     return NextResponse.json({ success: true });
   }

@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/admin"
 import { extractWordsFromPdf } from "@/lib/parser-training/pdf-words"
 import { type TrainingAnchor } from "@/lib/parser-training/deterministic-parser"
 import { runDeterministicParserForPdf } from "@/lib/parser-training/region-extractor"
-import { readPayslipPdf, readPendingPayslipPdf } from "@/lib/statement-pdf"
+import { readPayslipPdf, readPendingPayslipPdf, readStatementPdf } from "@/lib/statement-pdf"
 
 export async function POST(
   _request: NextRequest,
@@ -16,8 +16,8 @@ export async function POST(
   try {
     const { sourceType, id } = await params
     const sourceRecord = sourceType === "PAYSLIP"
-      ? await prisma.payslip.findUnique({ where: { id }, select: { rawFilename: true } })
-      : await prisma.statement.findUnique({ where: { id }, select: { rawFilename: true } })
+      ? await prisma.payslip.findUnique({ where: { id }, select: { rawFilename: true, storedFilename: true } })
+      : await prisma.statement.findUnique({ where: { id }, select: { rawFilename: true, storedFilename: true } })
 
     if (!sourceRecord) {
       return NextResponse.json({ error: "Archivo fuente no encontrado" }, { status: 404 })
@@ -36,14 +36,18 @@ export async function POST(
     }
 
     let pdfBuffer: Buffer
-    try {
-      pdfBuffer = readPayslipPdf(id, sourceRecord.rawFilename)
-    } catch {
+    if (sourceType === "PAYSLIP") {
       try {
-        pdfBuffer = readPendingPayslipPdf(id, sourceRecord.rawFilename)
+        pdfBuffer = readPayslipPdf(id, sourceRecord.rawFilename, sourceRecord.storedFilename)
       } catch {
-        return NextResponse.json({ error: "PDF no encontrado" }, { status: 404 })
+        try {
+          pdfBuffer = readPendingPayslipPdf(id, sourceRecord.rawFilename, sourceRecord.storedFilename)
+        } catch {
+          return NextResponse.json({ error: "PDF no encontrado" }, { status: 404 })
+        }
       }
+    } else {
+      pdfBuffer = readStatementPdf(id, sourceRecord.storedFilename)
     }
 
     const extraction = sourceRecord.rawFilename.toLowerCase().endsWith(".pdf") ? await extractWordsFromPdf(pdfBuffer) : { pages: [] }

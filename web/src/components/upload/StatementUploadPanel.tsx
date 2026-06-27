@@ -71,6 +71,12 @@ export default function StatementUploadPanel({ onComplete }: { onComplete?: () =
             ? `${bankName} · AI · revisión sugerida`
             : `${bankName} · AI · consistencia validada`;
 
+          showToast({
+            tone: "success",
+            title: "Resumen importado",
+            description: aiMessage,
+          });
+
           setFiles((prev) =>
             prev.map((f) =>
               f.file === item.file
@@ -100,7 +106,7 @@ export default function StatementUploadPanel({ onComplete }: { onComplete?: () =
     }, 2500);
 
     return () => window.clearInterval(intervalId);
-  }, [files]);
+  }, [files, showToast]);
 
   function addFiles(newFiles: File[]) {
     const pdfs = newFiles.filter((f) => f.type === "application/pdf" || f.name.endsWith(".pdf"));
@@ -136,6 +142,11 @@ export default function StatementUploadPanel({ onComplete }: { onComplete?: () =
         const transactionCount = typeof json.transactionCount === "number" ? json.transactionCount : Number(json.transactionCount ?? 0);
 
         if (res.status === 201) {
+          showToast({
+            tone: "success",
+            title: "Resumen importado",
+            description: `${bankName} · ${transactionCount} movimientos`,
+          });
           setFiles((prev) =>
             prev.map((f) =>
               f.file === item.file
@@ -170,13 +181,21 @@ export default function StatementUploadPanel({ onComplete }: { onComplete?: () =
             )
           );
         } else if (res.status === 409) {
+          const duplicateMessage = json.jobId && !json.statementId
+            ? "Este PDF ya está siendo analizado por AI para tu usuario."
+            : "Este resumen ya fue importado para tu usuario.";
+          showToast({
+            tone: "info",
+            title: "Resumen duplicado",
+            description: duplicateMessage,
+          });
           setFiles((prev) =>
             prev.map((f) =>
               f.file === item.file
                 ? {
                     ...f,
                     status: json.jobId && !json.statementId ? "processing" : "duplicate",
-                    message: json.jobId && !json.statementId ? "Este PDF ya está siendo analizado por AI" : "Ya fue importado",
+                    message: duplicateMessage,
                     statementId: typeof json.existingStatementId === "string" ? json.existingStatementId : typeof json.statementId === "string" ? json.statementId : undefined,
                     jobId: typeof json.jobId === "string" ? json.jobId : undefined,
                   }

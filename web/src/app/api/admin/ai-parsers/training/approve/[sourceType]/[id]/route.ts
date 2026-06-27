@@ -41,10 +41,10 @@ export async function POST(
 
     let pdfBuffer: Buffer
     try {
-      pdfBuffer = readPayslipPdf(id, payslip.rawFilename)
+      pdfBuffer = readPayslipPdf(id, payslip.rawFilename, payslip.storedFilename)
     } catch {
       try {
-        pdfBuffer = readPendingPayslipPdf(id, payslip.rawFilename)
+        pdfBuffer = readPendingPayslipPdf(id, payslip.rawFilename, payslip.storedFilename)
       } catch {
         return NextResponse.json({ error: "PDF no encontrado" }, { status: 404 })
       }

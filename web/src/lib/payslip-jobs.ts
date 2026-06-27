@@ -47,7 +47,7 @@ export async function processNextQueuedPayslip() {
   }
 
   try {
-    const pdfBuffer = readPendingPayslipPdf(nextPayslip.id, nextPayslip.rawFilename);
+    const pdfBuffer = readPendingPayslipPdf(nextPayslip.id, nextPayslip.rawFilename, nextPayslip.storedFilename);
     const pdfText = isPdfFilename(nextPayslip.rawFilename)
       ? await extractPdfText(pdfBuffer)
       : await ocrImage(pdfBuffer);

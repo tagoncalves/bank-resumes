@@ -145,6 +145,7 @@ export default function PayslipUploadPanel({ onComplete }: { onComplete?: () => 
     let allSuccess = true;
     let hasManual = false;
     let hasQueued = false;
+    let hasDuplicate = false;
 
     for (const item of pending) {
       const idx = items.indexOf(item);
@@ -167,10 +168,20 @@ export default function PayslipUploadPanel({ onComplete }: { onComplete?: () => 
       try {
         const res = await fetch("/api/payslips/upload", { method: "POST", body: formData });
         const json = await readJsonSafely(res);
-        const payslipId = typeof json.payslipId === "string" ? json.payslipId : undefined;
+        const payslipId = typeof json.payslipId === "string"
+          ? json.payslipId
+          : typeof json.existingPayslipId === "string"
+            ? json.existingPayslipId
+            : undefined;
 
         if (res.status === 409) {
-          updateItem(idx, { status: "duplicate", message: "Este recibo ya fue cargado", payslipId });
+          hasDuplicate = true;
+          showToast({
+            tone: "info",
+            title: "Recibo duplicado",
+            description: "Este recibo ya fue cargado para tu usuario.",
+          });
+          updateItem(idx, { status: "duplicate", message: "Este recibo ya fue cargado para tu usuario", payslipId });
           continue;
         }
 
@@ -211,7 +222,7 @@ export default function PayslipUploadPanel({ onComplete }: { onComplete?: () => 
     setImporting(false);
     router.refresh();
 
-    if (allSuccess) {
+    if (allSuccess && (hasManual || hasQueued)) {
       showToast({
         tone: "success",
         title: "Recibos importados",
@@ -220,6 +231,12 @@ export default function PayslipUploadPanel({ onComplete }: { onComplete?: () => 
           : hasQueued
             ? "Los recibos están en cola para análisis AI"
             : "Recibos importados correctamente",
+      });
+    } else if (allSuccess && hasDuplicate) {
+      showToast({
+        tone: "info",
+        title: "Sin cambios",
+        description: "Todos los recibos seleccionados ya estaban cargados para tu usuario.",
       });
     }
 
