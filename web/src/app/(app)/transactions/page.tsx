@@ -28,6 +28,7 @@ interface Transaction {
   installmentTotal?: number | null;
   cardLastFour?: string | null;
   isInstallment: boolean;
+  isSubscription: boolean;
   transactionType: string;
   source: string;
   categoryId?: string | null;
@@ -179,6 +180,15 @@ function TransactionsInner() {
   const formatShownMoney = showingUsdTotals ? formatUSD : formatARS;
   const isNegativeNet = shownNetTotal < 0;
   const activeAdvancedFilters = !!currency || !!amountMinFilter.inputValue || !!amountMaxFilter.inputValue || !!appliedAmountMin || !!appliedAmountMax;
+
+  async function toggleSubscription(tx: Transaction) {
+    await fetch(`/api/transactions/${tx.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isSubscription: !tx.isSubscription }),
+    });
+    fetchTransactions();
+  }
 
   return (
     <div className="space-y-4">
@@ -337,6 +347,16 @@ function TransactionsInner() {
                               {t.installmentCurrent}/{t.installmentTotal}
                             </span>
                           )}
+                          {t.isSubscription && (
+                            <span className="rounded bg-[color-mix(in_srgb,var(--color-income)_14%,var(--color-surface))] px-1.5 py-0.5 text-[10px] font-medium text-income">
+                              Suscripción
+                            </span>
+                          )}
+                          {t.source === "MANUAL" && t.statement && t.transactionType === "DEBIT" && (
+                            <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">
+                              Pago de resumen
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-5 py-2.5 text-xs text-zinc-500">
@@ -363,9 +383,6 @@ function TransactionsInner() {
                       </td>
                       <td className={`px-5 py-2.5 text-right font-mono font-medium tabular-nums ${isCredit ? "text-emerald-600" : "text-red-600"}`}>
                         <div className="flex items-center justify-end gap-1.5">
-                          {t.amountUsd && (
-                            <span className="rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-600">USD</span>
-                          )}
                           {t.amountArs === 0 && t.amountUsd
                             ? formatUSD(t.amountUsd)
                             : `${isCredit ? "+" : ""}${formatARS(t.amountArs)}`}
@@ -386,6 +403,8 @@ function TransactionsInner() {
                           })}
                           onEdit={canManage ? () => setEditingTx(t) : undefined}
                           onDelete={canManage ? () => handleDelete(t.id) : undefined}
+                          isSubscription={t.isSubscription}
+                          onToggleSubscription={() => toggleSubscription(t)}
                         />
                       </td>
                     </tr>

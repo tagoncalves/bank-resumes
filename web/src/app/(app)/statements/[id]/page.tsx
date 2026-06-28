@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { toMoneyNumber } from "@/lib/money";
 import { DeleteStatementButton } from "@/components/ui/delete-statement-button";
 import { CategoryPicker } from "@/components/ui/category-picker";
+import { Badge } from "@/components/ui/badge";
 import { RegisterPaymentDialog } from "@/components/statements/register-payment-dialog";
 
 export default async function StatementDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -266,9 +267,7 @@ export default async function StatementDetailPage({ params }: { params: Promise<
                     </td>
                     <td className="px-5 py-2.5 text-right font-mono font-medium tabular-nums text-red-600">
                       <div className="flex items-center justify-end gap-1.5">
-                        {t.amountUsd ? (
-                          <span className="rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-600">USD</span>
-                        ) : null}
+                        {t.amountUsd ? <Badge variant="outline">USD</Badge> : null}
                         {t.amountArs === 0 && t.amountUsd
                           ? formatUSD(t.amountUsd)
                           : formatARS(t.amountArs)}

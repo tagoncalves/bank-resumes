@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, FileText, List, Users, LogOut, ShieldAlert, FileBadge2, Bot, Ban, Bell, Database } from "lucide-react";
+import { LayoutDashboard, FileText, List, Users, LogOut, ShieldAlert, FileBadge2, Bot, Ban, Bell, Database, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import type { LucideIcon } from "lucide-react";
@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: "/transactions", label: "Movimientos", icon: List },
   { href: "/statements", label: "Resúmenes", icon: FileText },
   { href: "/payslips", label: "Recibos", icon: FileBadge2 },
+  { href: "/projections", label: "Proyección", icon: BarChart3 },
   { href: "/ai", label: "AI Chat", icon: Bot },
 ];
 

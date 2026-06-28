@@ -30,6 +30,7 @@ export async function PATCH(
     isInstallment,
     installmentCurrent,
     installmentTotal,
+    isSubscription,
   } = body as {
     categoryId?: string | null;
     date?: string;
@@ -40,6 +41,7 @@ export async function PATCH(
     isInstallment?: boolean;
     installmentCurrent?: number | null;
     installmentTotal?: number | null;
+    isSubscription?: boolean;
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -63,6 +65,7 @@ export async function PATCH(
   if (isInstallment !== undefined) data.isInstallment = isInstallment;
   if (installmentCurrent !== undefined) data.installmentCurrent = installmentCurrent;
   if (installmentTotal !== undefined) data.installmentTotal = installmentTotal;
+  if (isSubscription !== undefined) data.isSubscription = isSubscription;
 
   const updated = await prisma.transaction.update({
     where: { id },

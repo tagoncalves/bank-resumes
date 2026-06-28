@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatARS, formatDate } from "@/lib/formatters";
@@ -8,6 +8,7 @@ import { Check, Eye, RefreshCcw, ShieldAlert, X, Code, FileBadge2 } from "lucide
 import { useReviewStore } from "@/stores/statement-review";
 import { usePayslipAdminStore } from "@/stores/payslip-admin";
 import { useParserAdminStore } from "@/stores/parser-admin";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 type UnifiedItem = {
   id: string;
@@ -336,6 +337,7 @@ const PayslipCard = ({ itemId }: { itemId: string }) => {
   const setActionId = usePayslipAdminStore((s) => s.setActionId);
   const setActionError = usePayslipAdminStore((s) => s.setError);
   const fetchP = usePayslipAdminStore((s) => s.fetch);
+  const [confirmAction, setConfirmAction] = useState<string | null>(null);
 
   if (!p) return null;
 
@@ -435,14 +437,14 @@ const PayslipCard = ({ itemId }: { itemId: string }) => {
                       <Check className="h-3.5 w-3.5" /> Confirmar
                     </button>
                     <button
-                      onClick={() => { if (confirm(`¿Rechazar el resultado y re-analizar "${p.rawFilename}"?`)) handleAction(p.id, "reject"); }}
+                      onClick={() => setConfirmAction("reject")}
                       disabled={actionId === p.id}
                       className="inline-flex items-center gap-1 rounded bg-red-600 px-3 py-1.5 text-xs text-white hover:bg-red-700 disabled:opacity-60"
                     >
                       <RefreshCcw className="h-3.5 w-3.5" /> Rechazar
                     </button>
                     <button
-                      onClick={() => { if (confirm(`¿Eliminar el análisis AI de "${p.rawFilename}"?`)) handleAction(p.id, "clear-analysis"); }}
+                      onClick={() => setConfirmAction("clear-analysis")}
                       disabled={actionId === p.id}
                       className="inline-flex items-center gap-1 rounded border border-red-200 bg-white px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-60"
                     >
@@ -468,7 +470,7 @@ const PayslipCard = ({ itemId }: { itemId: string }) => {
                   </>
                 )}
                 <button
-                  onClick={() => { if (confirm(`¿Eliminar el recibo "${p.rawFilename}"?`)) handleAction(p.id, "delete"); }}
+                  onClick={() => setConfirmAction("delete")}
                   disabled={actionId === p.id}
                   className="inline-flex items-center gap-1 rounded border border-red-200 bg-white px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-60"
                 >
@@ -482,6 +484,36 @@ const PayslipCard = ({ itemId }: { itemId: string }) => {
           </div>
         </CardContent>
       </Card>
+      {p && (
+        <ConfirmDialog
+          open={confirmAction !== null}
+          onOpenChange={() => setConfirmAction(null)}
+          onConfirm={() => {
+            if (confirmAction && p) {
+              handleAction(p.id, confirmAction);
+              setConfirmAction(null);
+            }
+          }}
+          title={
+            confirmAction === "reject" ? "Rechazar y re-analizar"
+            : confirmAction === "clear-analysis" ? "Eliminar análisis AI"
+            : "Eliminar recibo"
+          }
+          description={
+            confirmAction === "reject"
+              ? `¿Rechazar el resultado y re-analizar "${p.rawFilename}"?`
+              : confirmAction === "clear-analysis"
+              ? `¿Eliminar el análisis AI de "${p.rawFilename}"?`
+              : `¿Eliminar el recibo "${p.rawFilename}"?`
+          }
+          confirmLabel={
+            confirmAction === "reject" ? "Rechazar"
+            : "Eliminar"
+          }
+          variant="destructive"
+          loading={actionId === p.id}
+        />
+      )}
     </>
   );
 };
@@ -554,6 +586,7 @@ const ParserResultCard = ({ itemId, showActions }: { itemId: string; showActions
   const setSavingId = useParserAdminStore((s) => s.setSavingId);
   const setExpandedResult = useParserAdminStore((s) => s.setExpandedResult);
   const fetchParsers = useParserAdminStore((s) => s.fetch);
+  const [confirmDeleteParser, setConfirmDeleteParser] = useState(false);
 
   if (!parser) return null;
 
@@ -575,6 +608,19 @@ const ParserResultCard = ({ itemId, showActions }: { itemId: string; showActions
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ parserId: id, status }),
+    });
+    setSavingId(null);
+    fetchParsers();
+  }
+
+  async function handleDeleteParser() {
+    if (!parser) return;
+    setConfirmDeleteParser(false);
+    setSavingId(parser.id);
+    await fetch("/api/admin/ai-parsers", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parserId: parser.id }),
     });
     setSavingId(null);
     fetchParsers();
@@ -729,17 +775,7 @@ const ParserResultCard = ({ itemId, showActions }: { itemId: string; showActions
                 <X className="h-3.5 w-3.5" /> Rechazar resultado
               </button>
               <button
-                onClick={async () => {
-                  if (!confirm("¿Eliminar este resultado de análisis AI definitivamente?")) return;
-                  setSavingId(parser.id);
-                  await fetch("/api/admin/ai-parsers", {
-                    method: "DELETE",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ parserId: parser.id }),
-                  });
-                  setSavingId(null);
-                  fetchParsers();
-                }}
+                onClick={() => setConfirmDeleteParser(true)}
                 disabled={savingId === parser.id}
                 className="flex items-center gap-1 rounded border border-red-200 bg-white px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-60"
               >
@@ -749,6 +785,16 @@ const ParserResultCard = ({ itemId, showActions }: { itemId: string; showActions
           )}
         </div>
       </CardContent>
+      <ConfirmDialog
+        open={confirmDeleteParser}
+        onOpenChange={setConfirmDeleteParser}
+        onConfirm={handleDeleteParser}
+        title="Eliminar análisis AI"
+        description="¿Eliminar este resultado de análisis AI definitivamente?"
+        confirmLabel="Eliminar"
+        variant="destructive"
+        loading={savingId === parser?.id}
+      />
     </>
   );
 };

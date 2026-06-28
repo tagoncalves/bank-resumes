@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import type { MasterDataField } from "@/lib/admin/master-data";
 import { useToast } from "@/components/ui/toast-provider";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 type RowValue = string | number | boolean | null;
 type MasterDataRow = Record<string, RowValue> & { id: string; createdAt?: string; updatedAt?: string };
@@ -147,6 +148,7 @@ export function MasterDataEntityPage({ entityKey }: { entityKey: string }) {
   const [form, setForm] = useState<Record<string, RowValue>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const [confirmDeleteRow, setConfirmDeleteRow] = useState<MasterDataRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -231,11 +233,11 @@ export function MasterDataEntityPage({ entityKey }: { entityKey: string }) {
 
   async function remove(row: MasterDataRow) {
     if (!metadata) return;
-    const label = String(row[metadata.displayField] ?? row.id);
-    if (!window.confirm(`¿Eliminar ${metadata.singularLabel.toLowerCase()} "${label}"?`)) return;
+    setConfirmDeleteRow(null);
     setSaving(true);
     setError(null);
     try {
+      const label = String(row[metadata.displayField] ?? row.id);
       const res = await fetch(`/api/admin/master-data/${entityKey}/${row.id}`, { method: "DELETE" });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? "No se pudo eliminar");
@@ -423,7 +425,7 @@ export function MasterDataEntityPage({ entityKey }: { entityKey: string }) {
                       <button type="button" onClick={() => startEdit(row)} className="mr-2 rounded p-1.5 text-zinc-400 hover:bg-white hover:text-indigo-600">
                         <Pencil className="h-4 w-4" />
                       </button>
-                      <button type="button" onClick={() => remove(row)} className="rounded p-1.5 text-zinc-400 hover:bg-white hover:text-red-600">
+                      <button type="button" onClick={() => setConfirmDeleteRow(row)} className="rounded p-1.5 text-zinc-400 hover:bg-white hover:text-red-600">
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </td>
@@ -478,6 +480,20 @@ export function MasterDataEntityPage({ entityKey }: { entityKey: string }) {
           </button>
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmDeleteRow !== null}
+        onOpenChange={() => setConfirmDeleteRow(null)}
+        onConfirm={() => confirmDeleteRow && remove(confirmDeleteRow)}
+        title={`Eliminar ${metadata.singularLabel.toLowerCase()}`}
+        description={
+          confirmDeleteRow
+            ? `\u00bfEliminar ${metadata.singularLabel.toLowerCase()} "${String(confirmDeleteRow[metadata.displayField] ?? confirmDeleteRow.id)}"?`
+            : ""
+        }
+        confirmLabel="Eliminar"
+        variant="destructive"
+        loading={saving}
+      />
     </div>
   );
 }

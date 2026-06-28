@@ -246,6 +246,7 @@ model Transaction {
   transactionType    String    @default("DEBIT")
   source             String    @default("IMPORTED") // "IMPORTED" | "MANUAL"
   isInstallment      Boolean   @default(false)
+  isSubscription     Boolean   @default(false)
   isReversal         Boolean   @default(false)
   deletedAt          DateTime?
   createdAt          DateTime  @default(now())

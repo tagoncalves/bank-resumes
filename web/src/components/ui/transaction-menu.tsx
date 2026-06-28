@@ -1,18 +1,22 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { MoreHorizontal, Pencil, Trash2, Search, Copy } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, Search, Copy, Repeat } from "lucide-react";
 
 export function TransactionMenu({
   onEdit,
   onDelete,
   onFilter,
   onReuse,
+  isSubscription,
+  onToggleSubscription,
 }: {
   onEdit?: () => void;
   onDelete?: () => void;
   onFilter: () => void;
   onReuse?: () => void;
+  isSubscription?: boolean;
+  onToggleSubscription?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -52,6 +56,15 @@ export function TransactionMenu({
             >
               <Copy className="h-3.5 w-3.5 text-muted" />
               Reutilizar
+            </button>
+          )}
+          {onToggleSubscription && (
+            <button
+              onClick={() => { setOpen(false); onToggleSubscription(); }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-surface-alt"
+            >
+              <Repeat className={`h-3.5 w-3.5 ${isSubscription ? "text-income" : "text-muted"}`} />
+              {isSubscription ? "Quitar suscripción" : "Marcar como suscripción"}
             </button>
           )}
           {(onEdit || onDelete) && (

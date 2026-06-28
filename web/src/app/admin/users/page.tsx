@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Trash2, Pencil, X, Check, ShieldCheck, User } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface UserRow {
   id: string;
@@ -21,6 +22,7 @@ export default function UsersPage() {
 
   const [form, setForm] = useState({ username: "", password: "", role: "USER", displayName: "" });
   const [editForm, setEditForm] = useState({ role: "USER", displayName: "", password: "" });
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; username: string } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -64,7 +66,7 @@ export default function UsersPage() {
   }
 
   async function handleDelete(id: string, username: string) {
-    if (!confirm(`¿Eliminar al usuario "${username}"?`)) return;
+    setConfirmDelete(null);
     await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
     load();
   }
@@ -246,7 +248,7 @@ export default function UsersPage() {
                           <button onClick={() => startEdit(u)} className="text-zinc-400 hover:text-zinc-600">
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
-                          <button onClick={() => handleDelete(u.id, u.username)} className="text-zinc-400 hover:text-red-500">
+                          <button onClick={() => setConfirmDelete({ id: u.id, username: u.username })} className="text-zinc-400 hover:text-red-500">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
@@ -262,6 +264,15 @@ export default function UsersPage() {
           )}
         </CardContent>
       </Card>
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        onOpenChange={() => setConfirmDelete(null)}
+        onConfirm={() => confirmDelete && handleDelete(confirmDelete.id, confirmDelete.username)}
+        title="Eliminar usuario"
+        description={confirmDelete ? `¿Eliminar al usuario "${confirmDelete.username}"?` : ""}
+        confirmLabel="Eliminar"
+        variant="destructive"
+      />
     </div>
   );
 }

@@ -4,16 +4,18 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export function ClearAnalysisButton({ payslipId, analysisProvider }: { payslipId: string; analysisProvider: string | null }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   if (!analysisProvider || analysisProvider === "MANUAL") return null;
 
   async function handleClear() {
-    if (!confirm("¿Eliminar los resultados del análisis AI? Esta acción no se puede deshacer.")) return;
     setLoading(true);
+    setConfirmOpen(false);
     try {
       const res = await fetch(`/api/admin/payslips/${payslipId}`, {
         method: "PATCH",
@@ -29,14 +31,26 @@ export function ClearAnalysisButton({ payslipId, analysisProvider }: { payslipId
   }
 
   return (
-    <Button
-      variant="destructive"
-      size="sm"
-      onClick={handleClear}
-      disabled={loading}
-    >
-      <Trash2 className="h-3.5 w-3.5" />
-      {loading ? "Eliminando..." : "Eliminar análisis AI"}
-    </Button>
+    <>
+      <Button
+        variant="destructive"
+        size="sm"
+        onClick={() => setConfirmOpen(true)}
+        disabled={loading}
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+        {loading ? "Eliminando..." : "Eliminar análisis AI"}
+      </Button>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        onConfirm={handleClear}
+        title="Eliminar análisis AI"
+        description="¿Eliminar los resultados del análisis AI? Esta acción no se puede deshacer."
+        confirmLabel="Eliminar"
+        variant="destructive"
+        loading={loading}
+      />
+    </>
   );
 }
