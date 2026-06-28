@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { FilterPill } from "@/design-system/components/filter-pill";
 
 const WINDOWS = [
   { label: "1 mes", value: 1 },
@@ -90,65 +91,54 @@ export function DashboardFilter({
       {/* Rolling window buttons */}
       <div className="flex gap-1">
         {WINDOWS.map((w) => (
-          <button
+          <FilterPill
             key={w.value}
             onClick={() => setWindow(w.value)}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              activeMonths === w.value
-                ? "bg-indigo-100 text-indigo-700"
-                : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
-            }`}
+            active={activeMonths === w.value}
           >
             {w.label}
-          </button>
+          </FilterPill>
         ))}
       </div>
 
-      <div className="h-4 w-px bg-zinc-200" />
+      <div className="h-4 w-px bg-border" />
 
       {/* Month navigation */}
       <div className="flex items-center gap-1">
         <button
           onClick={prevMonth}
-          className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+          className="ds-icon-button"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
-        <button
+        <FilterPill
           onClick={() => setMonth(currentYM)}
-          className={`min-w-[120px] rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors ${
-            activeMonth
-              ? "bg-indigo-100 text-indigo-700"
-              : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
-          }`}
+          active={!!activeMonth}
+          className="min-w-[120px] capitalize"
         >
           {monthLabel}
-        </button>
+        </FilterPill>
         <button
           onClick={nextMonth}
           disabled={isCurrentMonth && !!activeMonth}
-          className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-30"
+          className="ds-icon-button disabled:opacity-30"
         >
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
 
-      <div className="h-4 w-px bg-zinc-200" />
+      <div className="h-4 w-px bg-border" />
 
       <div className="flex gap-1">
         {ORIGINS.map((origin) => (
-          <button
+          <FilterPill
             key={origin.value}
             onClick={() => setOrigin(origin.value)}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              (currentOrigin ?? "all") === origin.value
-              || (origin.value !== "all" && selectedOrigins.includes(origin.value))
-                ? "bg-emerald-100 text-emerald-700"
-                : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
-            }`}
+            active={(currentOrigin ?? "all") === origin.value || (origin.value !== "all" && selectedOrigins.includes(origin.value))}
+            tone="income"
           >
             {origin.label}
-          </button>
+          </FilterPill>
         ))}
       </div>
     </div>

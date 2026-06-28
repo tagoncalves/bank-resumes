@@ -22,11 +22,11 @@ const LABELS: Record<string, string> = {
 };
 
 const COLORS: Record<string, string> = {
-  commissions: "#6366f1",
-  selloTax: "#f59e0b",
-  ivaTax: "#ec4899",
-  iibbTax: "#f97316",
-  financingInterest: "#ef4444",
+  commissions: "var(--color-primary)",
+  selloTax: "var(--color-warning)",
+  ivaTax: "var(--color-project)",
+  iibbTax: "var(--color-other)",
+  financingInterest: "var(--color-expense)",
 };
 
 export default function FeeBreakdown({ data }: { data: FeeData }) {
@@ -40,22 +40,22 @@ export default function FeeBreakdown({ data }: { data: FeeData }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm font-medium text-zinc-700">
+        <CardTitle className="text-sm font-medium text-foreground">
           Comisiones e impuestos
         </CardTitle>
       </CardHeader>
       <CardContent>
         {!chartData.length ? (
-          <p className="py-8 text-center text-sm text-zinc-400">Sin datos</p>
+          <p className="py-8 text-center text-sm text-muted">Sin datos</p>
         ) : (
           <>
             <ResponsiveContainer width="100%" height={160}>
               <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 8 }}>
-                <XAxis type="number" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} />
-                <YAxis type="category" dataKey="label" tick={{ fontSize: 10 }} width={100} />
+                <XAxis type="number" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10, fill: "var(--color-text-muted)" }} />
+                <YAxis type="category" dataKey="label" tick={{ fontSize: 10, fill: "var(--color-text-muted)" }} width={100} />
                 <Tooltip
                   formatter={(value) => [formatARS(Number(value)), ""]}
-                  contentStyle={{ fontSize: 12, borderColor: "#e4e4e7" }}
+                  contentStyle={{ fontSize: 12, borderColor: "var(--color-border)", background: "var(--color-surface)", color: "var(--color-text)" }}
                 />
                 <Bar dataKey="value" radius={[0, 3, 3, 0]}>
                   {chartData.map((d) => (
@@ -65,8 +65,8 @@ export default function FeeBreakdown({ data }: { data: FeeData }) {
               </BarChart>
             </ResponsiveContainer>
             <div className="mt-3 flex justify-between border-t pt-2">
-              <span className="text-xs text-zinc-500">Total cargos adicionales</span>
-              <span className="font-mono text-sm font-semibold text-red-600">
+              <span className="text-xs text-muted">Total cargos adicionales</span>
+              <span className="font-mono text-sm font-semibold text-expense">
                 {formatARS(data.total)}
               </span>
             </div>

@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, FileText, List, CreditCard, Users, LogOut, ShieldAlert, FileBadge2, Bot, Ban, Bell, Database } from "lucide-react";
+import { LayoutDashboard, FileText, List, Users, LogOut, ShieldAlert, FileBadge2, Bot, Ban, Bell, Database } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
+import type { LucideIcon } from "lucide-react";
+import { NerumMark } from "@/components/brand/nerum-mark";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -15,6 +17,23 @@ const NAV_ITEMS = [
 ];
 
 interface Me { username: string; role: string; displayName: string | null }
+
+function SidebarLink({ href, label, icon: Icon, active }: { href: string; label: string; icon: LucideIcon; active: boolean }) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "flex items-center gap-2.5 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+        active
+          ? "border-primary/30 bg-[var(--color-selected)] text-primary shadow-sm"
+          : "border-transparent text-muted hover:border-border hover:bg-[var(--color-hover)] hover:text-foreground"
+      )}
+    >
+      <Icon className={cn("h-4 w-4", active ? "text-primary" : "text-muted")} />
+      {label}
+    </Link>
+  );
+}
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -32,15 +51,13 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="flex h-screen w-56 flex-col border-r border-zinc-200 bg-white">
+    <aside className="flex h-screen w-56 flex-col border-r border-border bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/85">
       {/* Logo */}
-      <div className="flex items-center gap-2.5 border-b border-zinc-200 px-5 py-4">
-        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-indigo-600">
-          <CreditCard className="h-4 w-4 text-white" />
-        </div>
+      <div className="flex items-center gap-2.5 border-b border-border px-5 py-4">
+        <NerumMark className="h-8 w-8 shrink-0 shadow-sm" />
         <div>
-          <p className="text-sm font-semibold text-zinc-900">Nerun Finance</p>
-          <p className="text-[10px] text-zinc-400 leading-none">Gestor financiero</p>
+          <p className="text-sm font-semibold text-foreground">Nerum Finance</p>
+          <p className="text-[10px] leading-none text-muted">Gestor financiero</p>
         </div>
       </div>
 
@@ -50,107 +67,40 @@ export default function Sidebar() {
           const Icon = item.icon;
           const active = pathname.startsWith(item.href);
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                active
-                  ? "bg-indigo-50 text-indigo-700"
-                  : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
-              )}
-            >
-              <Icon className={cn("h-4 w-4", active ? "text-indigo-600" : "text-zinc-400")} />
-              {item.label}
-            </Link>
+            <SidebarLink key={item.href} href={item.href} label={item.label} icon={Icon} active={active} />
           );
         })}
         {/* Admin-only */}
         {me?.role === "ADMIN" && (
           <>
-            <div className="my-2 border-t border-zinc-100" />
-            <Link
-              href="/admin/master-data"
-              className={cn(
-                "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                pathname.startsWith("/admin/master-data")
-                  ? "bg-indigo-50 text-indigo-700"
-                  : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
-              )}
-            >
-              <Database className={cn("h-4 w-4", pathname.startsWith("/admin/master-data") ? "text-indigo-600" : "text-zinc-400")} />
-              Datos maestros
-            </Link>
-            <Link
-              href="/admin/users"
-              className={cn(
-                "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                pathname.startsWith("/admin/users")
-                  ? "bg-indigo-50 text-indigo-700"
-                  : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
-              )}
-            >
-              <Users className={cn("h-4 w-4", pathname.startsWith("/admin/users") ? "text-indigo-600" : "text-zinc-400")} />
-              Usuarios
-            </Link>
-            <Link
-              href="/admin/review-statements"
-              className={cn(
-                "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                pathname.startsWith("/admin/review-statements")
-                  ? "bg-indigo-50 text-indigo-700"
-                  : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
-              )}
-            >
-              <ShieldAlert className={cn("h-4 w-4", pathname.startsWith("/admin/review-statements") ? "text-indigo-600" : "text-zinc-400")} />
-              Revisión AI
-            </Link>
-            <Link
-              href="/admin/ai-bans"
-              className={cn(
-                "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                pathname.startsWith("/admin/ai-bans")
-                  ? "bg-indigo-50 text-indigo-700"
-                  : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
-              )}
-            >
-              <Ban className={cn("h-4 w-4", pathname.startsWith("/admin/ai-bans") ? "text-indigo-600" : "text-zinc-400")} />
-              Baneos AI
-            </Link>
-            <Link
-              href="/admin/notifications"
-              className={cn(
-                "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                pathname.startsWith("/admin/notifications")
-                  ? "bg-indigo-50 text-indigo-700"
-                  : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
-              )}
-            >
-              <Bell className={cn("h-4 w-4", pathname.startsWith("/admin/notifications") ? "text-indigo-600" : "text-zinc-400")} />
-              Notificaciones
-            </Link>
+            <div className="my-2 border-t border-border" />
+            <SidebarLink href="/admin/master-data" label="Datos maestros" icon={Database} active={pathname.startsWith("/admin/master-data")} />
+            <SidebarLink href="/admin/users" label="Usuarios" icon={Users} active={pathname.startsWith("/admin/users")} />
+            <SidebarLink href="/admin/review-statements" label="Revisión AI" icon={ShieldAlert} active={pathname.startsWith("/admin/review-statements")} />
+            <SidebarLink href="/admin/ai-bans" label="Baneos AI" icon={Ban} active={pathname.startsWith("/admin/ai-bans")} />
+            <SidebarLink href="/admin/notifications" label="Notificaciones" icon={Bell} active={pathname.startsWith("/admin/notifications")} />
           </>
         )}
       </nav>
 
       {/* Footer: user + logout */}
-      <div className="border-t border-zinc-200 px-4 py-3">
+      <div className="border-t border-border px-4 py-3">
         {me && (
           <div className="mb-2 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-zinc-700">{me.displayName ?? me.username}</p>
-              <p className="text-[10px] text-zinc-400">{me.role === "ADMIN" ? "Administrador" : "Usuario"}</p>
+              <p className="text-xs font-medium text-foreground">{me.displayName ?? me.username}</p>
+              <p className="text-[10px] text-muted">{me.role === "ADMIN" ? "Administrador" : "Usuario"}</p>
             </div>
             <button
               onClick={handleLogout}
               title="Cerrar sesión"
-              className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+              className="rounded border border-transparent p-1 text-muted hover:border-border hover:bg-[var(--color-hover)] hover:text-foreground"
             >
               <LogOut className="h-4 w-4" />
             </button>
           </div>
         )}
-        <p className="text-[11px] text-zinc-400">BBVA · Galicia</p>
+        <p className="text-[11px] text-muted">BBVA · Galicia</p>
       </div>
     </aside>
   );

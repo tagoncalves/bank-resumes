@@ -1,0 +1,37 @@
+export const warmFinanceTokens = {
+  light: {
+    background: "#FAF8F3",
+    surface: "#FFFFFF",
+    surfaceAlt: "#F2EFE7",
+    border: "#DED8CB",
+    text: "#17201C",
+    textMuted: "#66736D",
+  },
+  dark: {
+    background: "#0E1412",
+    surface: "#141D1A",
+    surfaceAlt: "#1B2723",
+    border: "#314039",
+    text: "#F4F0E8",
+    textMuted: "#A6B1AA",
+  },
+  primary: {
+    50: "#EAF7F3",
+    100: "#D4EFE8",
+    300: "#74C7B7",
+    500: "#168570",
+    600: "#0F6D5C",
+    700: "#0B574A",
+    900: "#083A32",
+  },
+  semantic: {
+    income: "#22A06B",
+    expense: "#D95F59",
+    saving: "#2F80ED",
+    project: "#9B6AD6",
+    warning: "#D9902F",
+    ai: "#5B6EE1",
+    other: "#8A7668",
+  },
+  chartSeries: ["#168570", "#22A06B", "#D95F59", "#2F80ED", "#D9902F", "#9B6AD6", "#5B6EE1", "#8A7668"],
+} as const;

@@ -41,9 +41,7 @@ export function CategoryPicker({
         value={value}
         onChange={handleChange}
         disabled={pending}
-        className="appearance-none pl-5 pr-2 py-0.5 text-[11px] rounded-full border-0 bg-transparent cursor-pointer
-                   focus:outline-none focus:ring-1 focus:ring-indigo-300 disabled:opacity-50
-                   hover:bg-zinc-100 transition-colors"
+        className="cursor-pointer appearance-none rounded-full border-0 bg-transparent py-0.5 pl-5 pr-2 text-[11px] transition-colors hover:bg-surface-alt focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
         style={{ color: current?.color ?? "#94A3B8" }}
       >
         <option value="">Sin categoría</option>

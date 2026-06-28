@@ -29,9 +29,9 @@ export default function MonthlyTrend({ data }: { data: MonthData[] }) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-medium text-zinc-700">Balance mensual</CardTitle>
+          <CardTitle className="text-sm font-medium text-foreground">Balance mensual</CardTitle>
         </CardHeader>
-        <CardContent className="flex h-52 items-center justify-center text-sm text-zinc-400">
+        <CardContent className="flex h-52 items-center justify-center text-sm text-muted">
           Sin datos
         </CardContent>
       </Card>
@@ -42,11 +42,16 @@ export default function MonthlyTrend({ data }: { data: MonthData[] }) {
     ...d,
     label: new Date(d.month + "-01").toLocaleDateString("es-AR", { month: "short", year: "2-digit" }),
   }));
-  let runningBalance = 0;
-  const withRunningBalance = formatted.map((item) => {
-    runningBalance += item.netBalance;
-    return { ...item, cumulativeNetBalance: runningBalance };
-  });
+  const withRunningBalance = formatted.reduce<{
+    items: Array<MonthData & { label: string; cumulativeNetBalance: number }>;
+    runningBalance: number;
+  }>((acc, item) => {
+    const cumulativeNetBalance = acc.runningBalance + item.netBalance;
+    return {
+      runningBalance: cumulativeNetBalance,
+      items: [...acc.items, { ...item, cumulativeNetBalance }],
+    };
+  }, { items: [], runningBalance: 0 }).items;
 
   function handleBarClick(entry: { month?: string }) {
     if (!entry?.month) return;
@@ -63,7 +68,7 @@ export default function MonthlyTrend({ data }: { data: MonthData[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm font-medium text-zinc-700">Balance mensual (ARS)</CardTitle>
+        <CardTitle className="text-sm font-medium text-foreground">Balance mensual (ARS)</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={240}>
@@ -75,11 +80,11 @@ export default function MonthlyTrend({ data }: { data: MonthData[] }) {
               if (payload) handleBarClick(payload);
             }}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" />
-            <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#71717a" }} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
+            <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--color-text-muted)" }} />
             <YAxis
               tickFormatter={(v) => compactARS(v)}
-              tick={{ fontSize: 11, fill: "#71717a" }}
+              tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
               width={60}
             />
             <Tooltip
@@ -87,14 +92,14 @@ export default function MonthlyTrend({ data }: { data: MonthData[] }) {
                 const payload = item?.payload as MonthData | undefined;
                 return [formatARS(Number(value)), payload ? `Ingresos ${formatARS(payload.income)} · Egresos ${formatARS(payload.expenses)}` : "Balance"];
               }}
-              contentStyle={{ fontSize: 12, borderColor: "#e4e4e7" }}
-              cursor={{ fill: "#e0e7ff", opacity: 0.5 }}
+              contentStyle={{ fontSize: 12, borderColor: "var(--color-border)", background: "var(--color-surface)", color: "var(--color-text)" }}
+              cursor={{ fill: "var(--color-selected)", opacity: 0.65 }}
             />
-            <Bar dataKey="netBalance" fill="#6366f1" radius={[3, 3, 0, 0]} cursor="pointer" />
-            <Line type="monotone" dataKey="cumulativeNetBalance" stroke="#10B981" strokeWidth={2} dot={false} />
+            <Bar dataKey="netBalance" fill="var(--color-primary)" radius={[3, 3, 0, 0]} cursor="pointer" />
+            <Line type="monotone" dataKey="cumulativeNetBalance" stroke="var(--color-income)" strokeWidth={2} dot={false} />
           </BarChart>
         </ResponsiveContainer>
-        <p className="mt-2 text-center text-[10px] text-zinc-400">Clic en una barra para filtrar el dashboard por mes</p>
+        <p className="mt-2 text-center text-[10px] text-muted">Clic en una barra para filtrar el dashboard por mes</p>
       </CardContent>
     </Card>
   );

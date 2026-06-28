@@ -44,9 +44,9 @@ export default function SpendingByCategory({ data, currentMonth, currentMonths, 
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-medium text-zinc-700">Gastos por categoría</CardTitle>
+          <CardTitle className="text-sm font-medium text-foreground">Gastos por categoría</CardTitle>
         </CardHeader>
-        <CardContent className="flex h-52 items-center justify-center text-sm text-zinc-400">
+        <CardContent className="flex h-52 items-center justify-center text-sm text-muted">
           Sin datos
         </CardContent>
       </Card>
@@ -56,7 +56,7 @@ export default function SpendingByCategory({ data, currentMonth, currentMonths, 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm font-medium text-zinc-700">Gastos por categoría</CardTitle>
+        <CardTitle className="text-sm font-medium text-foreground">Gastos por categoría</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={260}>
@@ -82,11 +82,11 @@ export default function SpendingByCategory({ data, currentMonth, currentMonths, 
             </Pie>
             <Tooltip
               formatter={(value) => [formatARS(Number(value)), "Total"]}
-              contentStyle={{ fontSize: 12, borderColor: "#e4e4e7" }}
+              contentStyle={{ fontSize: 12, borderColor: "var(--color-border)", background: "var(--color-surface)", color: "var(--color-text)" }}
             />
             <Legend
               formatter={(value) => (
-                <span className="text-xs text-zinc-600">{value}</span>
+                <span className="text-xs text-muted">{value}</span>
               )}
             />
           </PieChart>
@@ -96,20 +96,20 @@ export default function SpendingByCategory({ data, currentMonth, currentMonths, 
             <button
               key={d.categoryId}
               onClick={() => navigateToCategory(d.categoryId)}
-              className="flex w-full items-center justify-between text-xs rounded px-1 py-0.5 hover:bg-zinc-50 transition-colors"
+              className="flex w-full items-center justify-between rounded px-1 py-0.5 text-xs transition-colors hover:bg-surface-alt"
             >
               <div className="flex items-center gap-1.5">
                 <span
                   className="inline-block h-2.5 w-2.5 rounded-full"
                   style={{ background: d.color }}
                 />
-                <span className="text-zinc-600">{d.categoryName}</span>
+                <span className="text-muted">{d.categoryName}</span>
               </div>
-              <span className="font-mono text-zinc-700">{formatARS(d.total)}</span>
+              <span className="font-mono text-foreground">{formatARS(d.total)}</span>
             </button>
           ))}
         </div>
-        <p className="mt-2 text-center text-[10px] text-zinc-400">Clic para ver movimientos de la categoría</p>
+        <p className="mt-2 text-center text-[10px] text-muted">Clic para ver movimientos de la categoría</p>
       </CardContent>
     </Card>
   );

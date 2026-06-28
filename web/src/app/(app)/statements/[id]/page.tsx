@@ -2,12 +2,14 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getStatementById } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
-import { formatARS, formatUSD, formatDate } from "@/lib/formatters";
+import { formatARS, formatUSD, formatDate, formatMonthYear } from "@/lib/formatters";
+import { dateInputValue } from "@/lib/dates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DeleteStatementButton } from "@/components/ui/delete-statement-button";
 import { CategoryPicker } from "@/components/ui/category-picker";
+import { RegisterPaymentDialog } from "@/components/statements/register-payment-dialog";
 
 export default async function StatementDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -51,6 +53,17 @@ export default async function StatementDetailPage({ params }: { params: Promise<
           >
             <FileText className="h-4 w-4" /> Ver PDF
           </a>
+          {bs && (
+            <RegisterPaymentDialog
+              statementId={data.id}
+              currentBalance={bs.currentBalance}
+              minimumPayment={bs.minimumPayment}
+              dueDate={dateInputValue(data.dueDate)}
+              bankName={data.bankName}
+              cardLastFour={card.lastFour}
+              periodLabel={formatMonthYear(data.periodEnd)}
+            />
+          )}
           <DeleteStatementButton id={id} />
         </div>
       </div>

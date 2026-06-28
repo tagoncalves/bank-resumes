@@ -54,9 +54,9 @@ export function useToast() {
 
 function ToastCard({ toast }: { toast: ToastItem }) {
   const tones: Record<ToastTone, { icon: typeof Info; classes: string }> = {
-    success: { icon: CheckCircle2, classes: "border-emerald-200 bg-emerald-50 text-emerald-900" },
-    info: { icon: Info, classes: "border-indigo-200 bg-indigo-50 text-indigo-900" },
-    error: { icon: XCircle, classes: "border-red-200 bg-red-50 text-red-900" },
+    success: { icon: CheckCircle2, classes: "border-[color-mix(in_srgb,var(--color-income)_30%,var(--color-border))] bg-[color-mix(in_srgb,var(--color-income)_12%,var(--color-surface))] text-income" },
+    info: { icon: Info, classes: "border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-[color-mix(in_srgb,var(--color-primary)_12%,var(--color-surface))] text-primary" },
+    error: { icon: XCircle, classes: "border-[color-mix(in_srgb,var(--color-expense)_30%,var(--color-border))] bg-[color-mix(in_srgb,var(--color-expense)_12%,var(--color-surface))] text-expense" },
   };
 
   const config = tones[toast.tone];

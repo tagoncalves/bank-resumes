@@ -1,0 +1,83 @@
+<svg width="1200" height="860" viewBox="0 0 1200 860" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Nerum Finance logo preview</title>
+  <desc id="desc">Lamina de preview con logo final, isotipo, variantes light y dark, paleta y favicon.</desc>
+  <defs>
+    <linearGradient id="preview-mark" x1="18" y1="17" x2="111" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F3D37"/>
+      <stop offset="1" stop-color="#168570"/>
+    </linearGradient>
+    <linearGradient id="preview-mark-dark" x1="18" y1="17" x2="111" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A9DED1"/>
+      <stop offset="1" stop-color="#74C7B7"/>
+    </linearGradient>
+    <linearGradient id="preview-leaf" x1="69" y1="56" x2="101" y2="83" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A8DCC1"/>
+      <stop offset="1" stop-color="#74C7B7"/>
+    </linearGradient>
+    <filter id="soft-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#0F3D37" flood-opacity=".12"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="860" fill="#F2EFE7"/>
+  <text x="72" y="86" fill="#0F3D37" font-family="Satoshi, Inter, ui-sans-serif, system-ui, sans-serif" font-size="34" font-weight="700">Nerum Finance</text>
+  <text x="72" y="120" fill="#66736D" font-family="Satoshi, Inter, ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="500">Logo final + isotipo</text>
+
+  <rect x="72" y="164" width="1056" height="228" rx="28" fill="#FAF8F3" filter="url(#soft-shadow)"/>
+  <g transform="translate(122 214)">
+    <path d="M35.5 103.5C23.2 94 17 80.8 17 64C17 34.3 36.6 15 64 15C91.4 15 111 34.3 111 64C111 93.7 91.4 113 64 113C51.4 113 41.3 109.7 32.8 102.9" stroke="url(#preview-mark)" stroke-width="8.5" stroke-linecap="round"/>
+    <path d="M39 86V45.5C39 39.4 46.2 36.3 50.7 40.4L78.2 65.6C83.7 70.7 92.5 66.8 92.5 59.3V42" stroke="#0F3D37" stroke-width="8.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M70.8 76.4C74.1 62.2 85 53.9 100 55.8C98.5 70.8 87 80.8 70.8 76.4Z" fill="url(#preview-leaf)"/>
+    <path d="M74.8 72.8C81.4 68.4 88.2 64.7 96 60.6" stroke="#FAF8F3" stroke-width="2.4" stroke-linecap="round" opacity=".85"/>
+  </g>
+  <text x="278" y="280" fill="#0F3D37" font-family="Satoshi, Inter, ui-sans-serif, system-ui, sans-serif" font-size="72" font-weight="650" letter-spacing="-1.6">Nerum</text>
+  <text x="284" y="322" fill="#168570" font-family="Satoshi, Inter, ui-sans-serif, system-ui, sans-serif" font-size="32" font-weight="500" letter-spacing="10">finance</text>
+  <text x="828" y="278" fill="#66736D" font-family="Satoshi, Inter, ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="500">Light mark</text>
+  <rect x="828" y="296" width="64" height="64" rx="18" fill="#0F3D37"/>
+  <rect x="908" y="296" width="64" height="64" rx="18" fill="#168570"/>
+  <rect x="988" y="296" width="64" height="64" rx="18" fill="#A8DCC1"/>
+
+  <rect x="72" y="432" width="508" height="268" rx="28" fill="#0E1412" filter="url(#soft-shadow)"/>
+  <g transform="translate(118 500)">
+    <path d="M35.5 103.5C23.2 94 17 80.8 17 64C17 34.3 36.6 15 64 15C91.4 15 111 34.3 111 64C111 93.7 91.4 113 64 113C51.4 113 41.3 109.7 32.8 102.9" stroke="url(#preview-mark-dark)" stroke-width="8.5" stroke-linecap="round"/>
+    <path d="M39 86V45.5C39 39.4 46.2 36.3 50.7 40.4L78.2 65.6C83.7 70.7 92.5 66.8 92.5 59.3V42" stroke="#F4F0E8" stroke-width="8.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M70.8 76.4C74.1 62.2 85 53.9 100 55.8C98.5 70.8 87 80.8 70.8 76.4Z" fill="url(#preview-leaf)"/>
+    <path d="M74.8 72.8C81.4 68.4 88.2 64.7 96 60.6" stroke="#0E1412" stroke-width="2.4" stroke-linecap="round" opacity=".8"/>
+  </g>
+  <text x="262" y="570" fill="#F4F0E8" font-family="Satoshi, Inter, ui-sans-serif, system-ui, sans-serif" font-size="54" font-weight="650" letter-spacing="-1.2">Nerum</text>
+  <text x="266" y="606" fill="#A8DCC1" font-family="Satoshi, Inter, ui-sans-serif, system-ui, sans-serif" font-size="25" font-weight="500" letter-spacing="8">finance</text>
+
+  <rect x="620" y="432" width="508" height="268" rx="28" fill="#FAF8F3" filter="url(#soft-shadow)"/>
+  <text x="668" y="486" fill="#0F3D37" font-family="Satoshi, Inter, ui-sans-serif, system-ui, sans-serif" font-size="24" font-weight="700">Isotipo</text>
+  <text x="668" y="516" fill="#66736D" font-family="Satoshi, Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="500">N fluida + balance + crecimiento suave</text>
+  <g transform="translate(676 544) scale(.86)">
+    <rect width="128" height="128" rx="32" fill="#FAF8F3"/>
+    <path d="M35.5 103.5C23.2 94 17 80.8 17 64C17 34.3 36.6 15 64 15C91.4 15 111 34.3 111 64C111 93.7 91.4 113 64 113C51.4 113 41.3 109.7 32.8 102.9" stroke="url(#preview-mark)" stroke-width="8.5" stroke-linecap="round"/>
+    <path d="M39 86V45.5C39 39.4 46.2 36.3 50.7 40.4L78.2 65.6C83.7 70.7 92.5 66.8 92.5 59.3V42" stroke="#0F3D37" stroke-width="8.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M70.8 76.4C74.1 62.2 85 53.9 100 55.8C98.5 70.8 87 80.8 70.8 76.4Z" fill="url(#preview-leaf)"/>
+    <path d="M74.8 72.8C81.4 68.4 88.2 64.7 96 60.6" stroke="#FAF8F3" stroke-width="2.4" stroke-linecap="round" opacity=".85"/>
+  </g>
+  <g transform="translate(830 544) scale(.86)">
+    <rect width="128" height="128" rx="32" fill="#0F3D37"/>
+    <path d="M35.5 103.5C23.2 94 17 80.8 17 64C17 34.3 36.6 15 64 15C91.4 15 111 34.3 111 64C111 93.7 91.4 113 64 113C51.4 113 41.3 109.7 32.8 102.9" stroke="#A8DCC1" stroke-width="8.5" stroke-linecap="round"/>
+    <path d="M39 86V45.5C39 39.4 46.2 36.3 50.7 40.4L78.2 65.6C83.7 70.7 92.5 66.8 92.5 59.3V42" stroke="#FAF8F3" stroke-width="8.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M70.8 76.4C74.1 62.2 85 53.9 100 55.8C98.5 70.8 87 80.8 70.8 76.4Z" fill="#74C7B7"/>
+  </g>
+  <g transform="translate(984 544) scale(.86)">
+    <rect width="128" height="128" rx="32" fill="#0E1412"/>
+    <path d="M35.5 103.5C23.2 94 17 80.8 17 64C17 34.3 36.6 15 64 15C91.4 15 111 34.3 111 64C111 93.7 91.4 113 64 113C51.4 113 41.3 109.7 32.8 102.9" stroke="#74C7B7" stroke-width="8.5" stroke-linecap="round"/>
+    <path d="M39 86V45.5C39 39.4 46.2 36.3 50.7 40.4L78.2 65.6C83.7 70.7 92.5 66.8 92.5 59.3V42" stroke="#F4F0E8" stroke-width="8.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M70.8 76.4C74.1 62.2 85 53.9 100 55.8C98.5 70.8 87 80.8 70.8 76.4Z" fill="#A8DCC1"/>
+  </g>
+
+  <text x="72" y="770" fill="#0F3D37" font-family="Satoshi, Inter, ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="700">Core colors</text>
+  <g transform="translate(72 792)">
+    <rect width="88" height="28" rx="8" fill="#0F3D37"/>
+    <rect x="104" width="88" height="28" rx="8" fill="#168570"/>
+    <rect x="208" width="88" height="28" rx="8" fill="#A8DCC1"/>
+    <rect x="312" width="88" height="28" rx="8" fill="#FAF8F3"/>
+    <rect x="416" width="88" height="28" rx="8" fill="#E87463"/>
+    <rect x="520" width="88" height="28" rx="8" fill="#4C8DD9"/>
+    <rect x="624" width="88" height="28" rx="8" fill="#F4B23A"/>
+    <rect x="728" width="88" height="28" rx="8" fill="#5A6BDB"/>
+  </g>
+</svg>

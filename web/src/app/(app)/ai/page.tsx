@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Send, Trash2, Bot, User, Shield, Sparkles, Settings, X } from "lucide-react";
 import ChatSettings, { useAISettings } from "@/components/ai/ChatSettings";
+import { Button } from "@/design-system/components/button";
+import { Input } from "@/design-system/components/input";
 
 const STORAGE_KEY = "ai_chat_messages";
 
@@ -131,17 +133,17 @@ export default function AIChatPage() {
   return (
     <div className="flex h-full flex-col -m-6">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
+      <div className="flex items-center justify-between border-b border-border bg-surface/70 px-6 py-4 backdrop-blur">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100">
-            <Sparkles className="h-4 w-4 text-indigo-600" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--color-ai)_14%,var(--color-surface))]">
+            <Sparkles className="h-4 w-4 text-ai" />
           </div>
           <div>
-            <h1 className="text-sm font-semibold text-zinc-900">AI Financiero</h1>
+            <h1 className="text-sm font-semibold text-foreground">AI Financiero</h1>
             <div className="flex items-center gap-2">
-              <p className="text-[11px] text-zinc-400">DeepSeek · {settings.model}</p>
+              <p className="text-[11px] text-muted">DeepSeek · {settings.model}</p>
               {activeSkillCount < skillTotal && (
-                <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] text-zinc-500">
+                <span className="rounded bg-surface-alt px-1.5 py-0.5 text-[10px] text-muted">
                   {activeSkillCount}/{skillTotal} skills
                 </span>
               )}
@@ -149,35 +151,37 @@ export default function AIChatPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
+          <Button
             onClick={() => setSettingsOpen(true)}
-            className="flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700"
+            variant="outline"
+            size="sm"
             title="Configuración"
           >
             <Settings className="h-3.5 w-3.5" />
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={clearChat}
             disabled={messages.length === 0 || isBlocked}
-            className="flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700 disabled:opacity-40"
+            variant="outline"
+            size="sm"
             title={isBlocked ? `Bloqueado — restante: ${countdown}` : undefined}
           >
             <Trash2 className="h-3.5 w-3.5" />
             Nuevo chat
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Privacy banner */}
       {!bannerDismissed && (
-        <div className="flex items-center gap-2 bg-amber-50 border-b border-amber-200 px-6 py-2 text-[11px] text-amber-700">
+        <div className="flex items-center gap-2 border-b border-[color-mix(in_srgb,var(--color-warning)_30%,var(--color-border))] bg-[color-mix(in_srgb,var(--color-warning)_12%,var(--color-surface))] px-6 py-2 text-[11px] text-warning">
           <Shield className="h-3.5 w-3.5 shrink-0" />
           <span className="flex-1">
             Tus datos no se almacenan en el servidor ni se usan para entrenar modelos. Esta conversación se guarda solo en tu navegador hasta que cierres la pestaña o inicies un nuevo chat.
           </span>
           <button
             onClick={() => setBannerDismissed(true)}
-            className="rounded p-0.5 text-amber-400 hover:bg-amber-100 hover:text-amber-600"
+            className="ds-icon-button text-warning hover:text-warning"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -189,9 +193,9 @@ export default function AIChatPage() {
         {messages.length === 0 && (
           <div className="flex h-full items-center justify-center">
             <div className="max-w-sm text-center">
-              <Sparkles className="mx-auto h-8 w-8 text-indigo-300" />
-              <p className="mt-2 text-sm font-medium text-zinc-600">Consultá sobre tus finanzas</p>
-              <p className="mt-1 text-xs text-zinc-400">
+              <Sparkles className="mx-auto h-8 w-8 text-ai" />
+              <p className="mt-2 text-sm font-medium text-foreground">Consultá sobre tus finanzas</p>
+              <p className="mt-1 text-xs text-muted">
                 Resúmenes, recibos, presupuesto, dólar, impuestos &mdash; todo en argentina.
               </p>
             </div>
@@ -200,32 +204,32 @@ export default function AIChatPage() {
         {messages.map((msg, i) => (
           <div key={i} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : ""}`}>
             {msg.role === "assistant" && (
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 mt-1">
-                <Bot className="h-4 w-4 text-indigo-600" />
+              <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--color-ai)_14%,var(--color-surface))]">
+                <Bot className="h-4 w-4 text-ai" />
               </div>
             )}
             <div
               className={`max-w-[70%] rounded-xl px-4 py-2.5 text-sm leading-relaxed ${
                 msg.role === "user"
-                  ? "bg-indigo-600 text-white"
-                  : "bg-zinc-100 text-zinc-800"
+                  ? "bg-ai text-white"
+                  : "bg-surface-alt text-foreground"
               }`}
             >
               <p className="whitespace-pre-wrap">{msg.content}</p>
             </div>
             {msg.role === "user" && (
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-zinc-200 mt-1">
-                <User className="h-4 w-4 text-zinc-500" />
+              <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-muted">
+                <User className="h-4 w-4 text-muted" />
               </div>
             )}
           </div>
         ))}
         {loading && (
           <div className="flex gap-3">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100">
-              <Bot className="h-4 w-4 text-indigo-600" />
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--color-ai)_14%,var(--color-surface))]">
+              <Bot className="h-4 w-4 text-ai" />
             </div>
-            <div className="rounded-xl bg-zinc-100 px-4 py-2.5 text-sm text-zinc-500">
+            <div className="rounded-xl bg-surface-alt px-4 py-2.5 text-sm text-muted">
               <span className="inline-flex gap-1">
                 <span className="animate-bounce">·</span>
                 <span className="animate-bounce" style={{ animationDelay: "0.15s" }}>·</span>
@@ -237,44 +241,46 @@ export default function AIChatPage() {
       </div>
 
       {/* Input */}
-      <div className="border-t border-zinc-200 px-6 py-4">
+      <div className="border-t border-border bg-surface/70 px-6 py-4 backdrop-blur">
         {permanent ? (
-          <div className="flex items-center gap-3 rounded-lg bg-red-50 border border-red-200 px-4 py-3">
+          <div className="flex items-center gap-3 rounded-lg border border-[color-mix(in_srgb,var(--color-expense)_30%,var(--color-border))] bg-[color-mix(in_srgb,var(--color-expense)_12%,var(--color-surface))] px-4 py-3">
             <div className="flex-1">
-              <p className="text-xs font-medium text-red-700">AI bloqueado permanentemente</p>
-              <p className="text-[11px] text-red-500">Contactá a un administrador para revisar tu caso.</p>
+              <p className="text-xs font-medium text-expense">AI bloqueado permanentemente</p>
+              <p className="text-[11px] text-expense">
+                Contactá a un administrador para revisar tu caso{blockLevel > 0 ? ` · nivel ${blockLevel}` : ""}.
+              </p>
             </div>
           </div>
         ) : isBlocked ? (
-          <div className="flex items-center gap-3 rounded-lg bg-red-50 border border-red-200 px-4 py-3">
+          <div className="flex items-center gap-3 rounded-lg border border-[color-mix(in_srgb,var(--color-expense)_30%,var(--color-border))] bg-[color-mix(in_srgb,var(--color-expense)_12%,var(--color-surface))] px-4 py-3">
             <div className="flex-1">
-              <p className="text-xs font-medium text-red-700">AI bloqueado por uso indebido</p>
-              <p className="text-[11px] text-red-500">Se restablece en {countdown}</p>
+              <p className="text-xs font-medium text-expense">AI bloqueado por uso indebido</p>
+              <p className="text-[11px] text-expense">Se restablece en {countdown}</p>
             </div>
-            <div className="font-mono text-lg font-semibold text-red-600 tabular-nums">{countdown}</div>
+            <div className="font-mono text-lg font-semibold tabular-nums text-expense">{countdown}</div>
           </div>
         ) : (
           <form
             onSubmit={(e) => { e.preventDefault(); send(); }}
             className="flex gap-2"
           >
-            <input
+            <Input
               ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Escribí tu consulta..."
               disabled={loading}
-              className="flex-1 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-50"
+              className="flex-1"
             />
-            <button
+            <Button
               type="submit"
               disabled={loading || !input.trim()}
-              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+              variant="ai"
             >
               <Send className="h-4 w-4" />
               Enviar
-            </button>
+            </Button>
           </form>
         )}
       </div>

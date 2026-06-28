@@ -11,6 +11,7 @@ import { DashboardFilter } from "@/components/dashboard/DashboardFilter";
 import Link from "next/link";
 import { PlusCircle, Upload, Calendar } from "lucide-react";
 import OpenUploadButton from "@/components/upload/OpenUploadButton";
+import { Card } from "@/design-system/components/card";
 
 function prevMonthParam() {
   const now = new Date();
@@ -64,35 +65,35 @@ export default async function DashboardPage({
     return (
       <div className="space-y-5">
         {filter}
-        <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-zinc-200 bg-white py-16 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100">
-            <Calendar className="h-6 w-6 text-zinc-400" />
+        <Card className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-alt">
+            <Calendar className="h-6 w-6 text-muted" />
           </div>
           <div>
-            <p className="text-base font-semibold text-zinc-700">
+            <p className="text-base font-semibold text-foreground">
               Sin movimientos en {periodLabel}
             </p>
-            <p className="mt-1 text-sm text-zinc-400">
+            <p className="mt-1 text-sm text-muted">
               No hay ingresos ni egresos registrados para este período.
             </p>
           </div>
           <div className="flex gap-3">
             <Link
               href="/transactions"
-              className="flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+              className="flex items-center gap-2 rounded-[var(--radius-md)] bg-primary px-4 py-2 text-sm font-medium text-[var(--color-on-primary)] hover:bg-primary-hover"
             >
               <PlusCircle className="h-4 w-4" />
               Crear movimiento
             </Link>
             <OpenUploadButton
               kind="statement"
-              className="flex items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50"
+              className="flex items-center gap-2 rounded-[var(--radius-md)] border border-border bg-surface px-4 py-2 text-sm font-medium text-foreground hover:bg-surface-alt"
             >
               <Upload className="h-4 w-4" />
               Importar resumen
             </OpenUploadButton>
           </div>
-        </div>
+        </Card>
       </div>
     );
   }

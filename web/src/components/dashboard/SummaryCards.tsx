@@ -25,30 +25,30 @@ export default function SummaryCards({
       <MetricCard
         label="Ingresos del período"
         value={formatARS(totalIncomeArs)}
-        icon={<ArrowUpCircle className="h-4 w-4 text-emerald-600" />}
+        icon={<ArrowUpCircle className="h-4 w-4 text-income" />}
         sub={periodLabel}
-        valueClass="text-emerald-600"
+        valueClass="text-income"
       />
       <MetricCard
         label="Egresos del período"
         value={formatARS(totalExpenseArs)}
-        icon={<ArrowDownCircle className="h-4 w-4 text-red-600" />}
+        icon={<ArrowDownCircle className="h-4 w-4 text-expense" />}
         sub={periodLabel}
-        valueClass="text-red-600"
+        valueClass="text-expense"
       />
       <MetricCard
         label="Balance neto ARS"
         value={formatARS(netBalanceArs)}
-        icon={<Scale className="h-4 w-4 text-indigo-600" />}
+        icon={<Scale className="h-4 w-4 text-primary" />}
         sub={periodLabel}
-        valueClass={cn(netBalanceArs >= 0 ? "text-zinc-900" : "text-red-600")}
+        valueClass={cn(netBalanceArs >= 0 ? "text-foreground" : "text-expense")}
       />
       <MetricCard
         label="Balance neto USD"
         value={formatUSD(netBalanceUsd)}
-        icon={<Wallet className="h-4 w-4 text-sky-600" />}
+        icon={<Wallet className="h-4 w-4 text-saving" />}
         sub={periodLabel}
-        valueClass={cn(netBalanceUsd >= 0 ? "text-zinc-900" : "text-red-600")}
+        valueClass={cn(netBalanceUsd >= 0 ? "text-foreground" : "text-expense")}
       />
     </div>
   );
@@ -71,13 +71,13 @@ function MetricCard({
     <Card>
       <CardContent className="p-5">
         <div className="flex items-center justify-between">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">{label}</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted">{label}</p>
           {icon}
         </div>
         <p className={cn("mt-2 text-2xl font-semibold font-mono tabular-nums", valueClass)}>
           {value}
         </p>
-        <div className="mt-1 text-xs text-zinc-400">{sub}</div>
+        <div className="mt-1 text-xs text-muted">{sub}</div>
       </CardContent>
     </Card>
   );

@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "react:doctor": "react-doctor . --no-score --blocking warning",
     "postinstall": "prisma generate && node -e \"const fs=require('fs');const path=require('path');try{fs.mkdirSync('public',{recursive:true});fs.mkdirSync(path.join('public','pdfjs','standard_fonts'),{recursive:true});fs.copyFileSync(require.resolve('pdfjs-dist/build/pdf.worker.min.mjs'),'public/pdf.worker.min.mjs');const fontsDir=path.dirname(require.resolve('pdfjs-dist/standard_fonts/FoxitDingbats.pfb'));for(const file of fs.readdirSync(fontsDir)){fs.copyFileSync(path.join(fontsDir,file),path.join('public','pdfjs','standard_fonts',file));}}catch(e){}\"",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
@@ -38,6 +41,9 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@storybook/addon-a11y": "^10.4.6",
+    "@storybook/addon-docs": "^10.4.6",
+    "@storybook/nextjs": "^10.4.6",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/pdf-parse": "^1.1.5",
@@ -46,6 +52,8 @@
     "eslint": "^9",
     "eslint-config-next": "^16.2.9",
     "postcss": "^8",
+    "react-doctor": "^0.5.8",
+    "storybook": "^10.4.6",
     "tailwindcss": "^3.4.1",
     "ts-node": "^10.9.2",
     "typescript": "^5"

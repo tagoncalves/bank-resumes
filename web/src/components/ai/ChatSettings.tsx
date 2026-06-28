@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Settings, X, Shield, ChevronDown, Check } from "lucide-react";
+import { Button } from "@/design-system/components/button";
+import { Textarea } from "@/design-system/components/textarea";
 
 export type AISettings = {
   skills: Record<string, boolean>;
@@ -79,38 +81,38 @@ function SkillMultiselect({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+        className="ds-input flex items-center justify-between"
       >
-        <span className="text-zinc-700">
+        <span className="text-foreground">
           {active.length === SKILL_OPTIONS.length
             ? "Todas las skills"
             : active.length === 0
               ? "Ninguna skill"
               : `${active.length} de ${SKILL_OPTIONS.length} skills`}
         </span>
-        <ChevronDown className={`h-4 w-4 text-zinc-400 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`h-4 w-4 text-muted transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute left-0 right-0 z-10 mt-1 rounded-lg border border-zinc-200 bg-white shadow-lg">
+        <div className="absolute left-0 right-0 z-10 mt-1 rounded-[var(--radius-md)] border border-border bg-surface shadow-lg">
           {SKILL_OPTIONS.map((skill) => {
             const isSelected = !!skills[skill.id];
             return (
               <label
                 key={skill.id}
-                className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-zinc-50 first:rounded-t-lg last:rounded-b-lg ${
-                  isSelected ? "bg-indigo-50/50" : ""
+                className={`flex cursor-pointer items-center gap-3 px-3 py-2.5 hover:bg-surface-alt first:rounded-t-[var(--radius-md)] last:rounded-b-[var(--radius-md)] ${
+                  isSelected ? "bg-[var(--color-selected)]" : ""
                 }`}
               >
                 <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors ${
-                  isSelected ? "border-indigo-600 bg-indigo-600" : "border-zinc-300"
+                  isSelected ? "border-ai bg-ai" : "border-border"
                 }`}>
                   {isSelected && <Check className="h-3.5 w-3.5 text-white" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-zinc-800">{skill.label}</p>
-                  <p className="text-[11px] text-zinc-400 truncate">{skill.desc}</p>
+                  <p className="text-sm font-medium text-foreground">{skill.label}</p>
+                  <p className="truncate text-[11px] text-muted">{skill.desc}</p>
                 </div>
               </label>
             );
@@ -123,19 +125,19 @@ function SkillMultiselect({
         {active.map((skill) => (
           <span
             key={skill.id}
-            className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2.5 py-0.5 text-[11px] font-medium text-indigo-700"
+            className="inline-flex items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--color-ai)_14%,var(--color-surface))] px-2.5 py-0.5 text-[11px] font-medium text-ai"
           >
             {skill.label}
             <button
               onClick={() => toggle(skill.id)}
-              className="ml-0.5 rounded-full p-0.5 hover:bg-indigo-200"
+              className="ml-0.5 rounded-full p-0.5 hover:bg-[color-mix(in_srgb,var(--color-ai)_20%,var(--color-surface))]"
             >
               <X className="h-3 w-3" />
             </button>
           </span>
         ))}
         {inactive.length > 0 && (
-          <span className="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-[11px] text-zinc-400">
+          <span className="inline-flex items-center rounded-full bg-surface-alt px-2.5 py-0.5 text-[11px] text-muted">
             +{inactive.length} ocultas
           </span>
         )}
@@ -160,15 +162,15 @@ export default function ChatSettings({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-lg rounded-xl bg-white shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-lg rounded-[var(--radius-xl)] border border-border bg-surface shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div className="flex items-center gap-2">
-            <Settings className="h-4 w-4 text-zinc-500" />
-            <h2 className="text-sm font-semibold text-zinc-900">Configuración del AI</h2>
+            <Settings className="h-4 w-4 text-ai" />
+            <h2 className="text-sm font-semibold text-foreground">Configuración del AI</h2>
           </div>
-          <button onClick={onClose} className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">
+          <button onClick={onClose} className="ds-icon-button">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -176,7 +178,7 @@ export default function ChatSettings({
         <div className="max-h-[60vh] space-y-5 overflow-y-auto px-5 py-4">
           {/* Skills */}
           <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Skills activas</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Skills activas</p>
             <SkillMultiselect
               skills={settings.skills}
               onChange={(skills) => onSettingsChange({ ...settings, skills })}
@@ -185,17 +187,17 @@ export default function ChatSettings({
 
           {/* Model */}
           <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Modelo</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Modelo</p>
             <select
               value={settings.model}
               onChange={(e) => onSettingsChange({ ...settings, model: e.target.value })}
-              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+              className="ds-input"
             >
               <option value="deepseek-chat">DeepSeek Chat</option>
               <option value="deepseek-reasoner">DeepSeek Reasoner (R1)</option>
             </select>
             <div className="mt-3">
-              <label className="text-xs text-zinc-500">Temperatura: {settings.temperature}</label>
+              <label className="text-xs text-muted">Temperatura: {settings.temperature}</label>
               <input
                 type="range"
                 min="0"
@@ -203,9 +205,9 @@ export default function ChatSettings({
                 step="0.05"
                 value={settings.temperature}
                 onChange={(e) => onSettingsChange({ ...settings, temperature: parseFloat(e.target.value) })}
-                className="w-full accent-indigo-600"
+                className="w-full accent-ai"
               />
-              <div className="flex justify-between text-[10px] text-zinc-400">
+              <div className="flex justify-between text-[10px] text-muted">
                 <span>Preciso</span>
                 <span>Creativo</span>
               </div>
@@ -216,16 +218,16 @@ export default function ChatSettings({
           {isAdmin && (
             <div>
               <div className="flex items-center gap-1.5 mb-2">
-                <Shield className="h-3.5 w-3.5 text-amber-600" />
-                <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">Admin</p>
+                <Shield className="h-3.5 w-3.5 text-warning" />
+                <p className="text-xs font-semibold uppercase tracking-wide text-warning">Admin</p>
               </div>
               <label className="block">
-                <p className="mb-1 text-xs text-zinc-500">System prompt adicional (se agrega al final)</p>
-                <textarea
+                <p className="mb-1 text-xs text-muted">System prompt adicional (se agrega al final)</p>
+                <Textarea
                   value={settings.adminPromptOverride}
                   onChange={(e) => onSettingsChange({ ...settings, adminPromptOverride: e.target.value })}
                   rows={4}
-                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 font-mono"
+                  className="font-mono text-xs focus:border-warning"
                   placeholder="Instrucciones adicionales para el modelo..."
                 />
               </label>
@@ -234,13 +236,13 @@ export default function ChatSettings({
         </div>
 
         {/* Footer */}
-        <div className="border-t border-zinc-200 px-5 py-3 text-right">
-          <button
+        <div className="border-t border-border px-5 py-3 text-right">
+          <Button
             onClick={onClose}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+            variant="ai"
           >
             Listo
-          </button>
+          </Button>
         </div>
       </div>
     </div>
