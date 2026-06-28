@@ -131,17 +131,17 @@ export default function AIChatPage() {
   const activeSkillCount = Object.values(settings.skills).filter(Boolean).length;
 
   return (
-    <div className="flex h-full flex-col -m-6">
+    <div className="-m-3 flex h-full flex-col sm:-m-4 lg:-m-6">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border bg-surface/70 px-6 py-4 backdrop-blur">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface/70 px-3 py-3 backdrop-blur sm:px-6 sm:py-4">
+        <div className="flex min-w-0 items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--color-ai)_14%,var(--color-surface))]">
             <Sparkles className="h-4 w-4 text-ai" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h1 className="text-sm font-semibold text-foreground">AI Financiero</h1>
-            <div className="flex items-center gap-2">
-              <p className="text-[11px] text-muted">DeepSeek · {settings.model}</p>
+            <div className="flex min-w-0 items-center gap-2">
+              <p className="truncate text-[11px] text-muted">DeepSeek · {settings.model}</p>
               {activeSkillCount < skillTotal && (
                 <span className="rounded bg-surface-alt px-1.5 py-0.5 text-[10px] text-muted">
                   {activeSkillCount}/{skillTotal} skills
@@ -150,7 +150,7 @@ export default function AIChatPage() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Button
             onClick={() => setSettingsOpen(true)}
             variant="outline"
@@ -167,7 +167,7 @@ export default function AIChatPage() {
             title={isBlocked ? `Bloqueado — restante: ${countdown}` : undefined}
           >
             <Trash2 className="h-3.5 w-3.5" />
-            Nuevo chat
+            <span className="hidden min-[380px]:inline">Nuevo chat</span>
           </Button>
         </div>
       </div>

@@ -1,23 +1,23 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { isAdmin } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatARS, formatDate } from "@/lib/formatters";
 import { toMoneyNumber } from "@/lib/money";
-import { ArrowLeft, Download, FileText, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, FileText } from "lucide-react";
 import { DeletePayslipButton } from "@/components/ui/delete-payslip-button";
 import { ClearAnalysisButton } from "@/components/ui/clear-analysis-button";
 
 export default async function PayslipDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getSession();
+  if (!session) redirect("/login");
 
   const payslip = await prisma.payslip.findFirst({
     where: {
       id,
-      userId: session?.userId ?? null,
+      userId: session.userId,
     },
     include: {
       incomeTransaction: {
@@ -32,14 +32,14 @@ export default async function PayslipDetailPage({ params }: { params: Promise<{ 
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="responsive-row flex items-center justify-between gap-3">
         <Link
           href="/payslips"
           className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-700"
         >
           <ArrowLeft className="h-4 w-4" /> Recibos
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <a
             href={`/api/payslips/${id}/pdf`}
             target="_blank"
@@ -103,7 +103,7 @@ export default async function PayslipDetailPage({ params }: { params: Promise<{ 
         </CardHeader>
         <CardContent>
           {payslip.incomeTransaction ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+            <div className="responsive-grid-detail text-sm">
               <DetailItem label="Fecha" value={formatDate(payslip.incomeTransaction.date)} />
               <DetailItem label="Descripción" value={payslip.incomeTransaction.normalizedMerchant || payslip.incomeTransaction.merchantName} />
               <DetailItem label="Categoría" value={payslip.incomeTransaction.category?.name ?? "Sin categoría"} />
@@ -120,7 +120,7 @@ export default async function PayslipDetailPage({ params }: { params: Promise<{ 
           <CardTitle className="text-sm font-medium text-zinc-700">Archivo importado</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 text-sm">
+          <div className="responsive-grid-detail text-sm">
             <DetailItem label="Archivo" value={payslip.rawFilename} />
             <DetailItem label="Origen" value={describeImportOrigin(payslip.analysisProvider)} />
             <DetailItem label="Moneda" value={payslip.currency} />
@@ -158,9 +158,9 @@ function DetailItem({
   valueClass?: string;
 }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="text-xs text-zinc-400">{label}</p>
-      <p className={valueClass ?? "text-zinc-800"}>{value}</p>
+      <p className={valueClass ?? "overflow-wrap-anywhere text-zinc-800"}>{value}</p>
     </div>
   );
 }

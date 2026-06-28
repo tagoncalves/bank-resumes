@@ -10,9 +10,13 @@ datasource db {
 model User {
   id             String    @id @default(cuid())
   username       String    @unique
+  email          String?
   passwordHash   String
   role           String    @default("USER") // "ADMIN" | "USER"
   displayName    String?
+  emailVerifiedAt DateTime?
+  emailVerificationCodeHash String?
+  emailVerificationExpiresAt DateTime?
   createdAt      DateTime  @default(now())
   aiMisuseCount  Int       @default(0)
   aiBlockedUntil DateTime?
@@ -30,6 +34,8 @@ model User {
   notificationPreferences NotificationPreference[]
   notificationEvents      NotificationEvent[]
   recurringTransactions   RecurringTransaction[]
+
+  @@index([email])
 }
 
 model AiBan {

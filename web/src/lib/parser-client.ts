@@ -1,4 +1,4 @@
-const PARSER_URL = process.env.PARSER_SERVICE_URL ?? "http://localhost:8001";
+const PARSER_URL = process.env.PARSER_SERVICE_URL ?? "http://localhost:8002";
 
 export interface ParsedTransaction {
   date: string;

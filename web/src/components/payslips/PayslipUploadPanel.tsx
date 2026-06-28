@@ -345,7 +345,7 @@ export default function PayslipUploadPanel({ onComplete }: { onComplete?: () => 
                     </div>
 
                     {!item.analyzeWithAi && (
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="responsive-grid-detail">
                         {/* Employer selector */}
                         <div className="relative">
                           <label className="block text-xs font-medium text-zinc-500 mb-1">Empleador</label>

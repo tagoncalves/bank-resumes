@@ -21,7 +21,7 @@ export default function SummaryCards({
   periodLabel,
 }: SummaryCardsProps) {
   return (
-    <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+    <div className="summary-card-grid">
       <MetricCard
         label="Ingresos del período"
         value={formatARS(totalIncomeArs)}
@@ -68,16 +68,16 @@ function MetricCard({
   valueClass?: string;
 }) {
   return (
-    <Card>
-      <CardContent className="p-5">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted">{label}</p>
-          {icon}
+    <Card className="responsive-card overflow-hidden">
+      <CardContent className="p-3 sm:p-4 lg:p-5">
+        <div className="flex min-w-0 items-start justify-between gap-2">
+          <p className="fluid-label font-medium uppercase tracking-wide text-muted">{label}</p>
+          <span className="shrink-0 pt-0.5">{icon}</span>
         </div>
-        <p className={cn("mt-2 text-2xl font-semibold font-mono tabular-nums", valueClass)}>
+        <p className={cn("fluid-metric mt-2 font-mono font-semibold tabular-nums", valueClass)}>
           {value}
         </p>
-        <div className="mt-1 text-xs text-muted">{sub}</div>
+        <div className="fluid-subtle mt-1 text-muted">{sub}</div>
       </CardContent>
     </Card>
   );

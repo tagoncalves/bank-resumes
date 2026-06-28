@@ -108,11 +108,11 @@ export default function ProjectionsPage() {
 
       {/* === Resumen mensual === */}
       {cashflow && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Card>
+        <div className="responsive-grid-compact">
+          <Card className="responsive-card overflow-hidden">
             <CardContent className="p-4">
-              <p className="text-xs text-zinc-500">Ingresos recurrentes</p>
-              <p className="mt-1 font-mono text-lg font-semibold text-emerald-600 tabular-nums">
+              <p className="fluid-label text-zinc-500">Ingresos recurrentes</p>
+              <p className="fluid-money-small mt-1 font-mono font-semibold text-emerald-600 tabular-nums">
                 {formatARS(cashflow.breakdown.recurringIncome)}
               </p>
               {cashflow.breakdown.variableIncome > 0 && (
@@ -123,10 +123,10 @@ export default function ProjectionsPage() {
               )}
             </CardContent>
           </Card>
-          <Card>
+          <Card className="responsive-card overflow-hidden">
             <CardContent className="p-4">
-              <p className="text-xs text-zinc-500">Gastos recurrentes</p>
-              <p className="mt-1 font-mono text-lg font-semibold text-red-600 tabular-nums">
+              <p className="fluid-label text-zinc-500">Gastos recurrentes</p>
+              <p className="fluid-money-small mt-1 font-mono font-semibold text-red-600 tabular-nums">
                 {formatARS(cashflow.breakdown.recurringExpense)}
               </p>
               {cashflow.breakdown.subscriptionExpense > 0 && (
@@ -136,18 +136,18 @@ export default function ProjectionsPage() {
               )}
             </CardContent>
           </Card>
-          <Card>
+          <Card className="responsive-card overflow-hidden">
             <CardContent className="p-4">
-              <p className="text-xs text-zinc-500">Gasto variable estimado</p>
-              <p className="mt-1 font-mono text-lg font-semibold text-red-600 tabular-nums">
+              <p className="fluid-label text-zinc-500">Gasto variable estimado</p>
+              <p className="fluid-money-small mt-1 font-mono font-semibold text-red-600 tabular-nums">
                 {formatARS(cashflow.breakdown.variableExpense)}
               </p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="responsive-card overflow-hidden">
             <CardContent className="p-4">
-              <p className="text-xs text-zinc-500">Cuotas pendientes</p>
-              <p className="mt-1 font-mono text-lg font-semibold text-red-600 tabular-nums">
+              <p className="fluid-label text-zinc-500">Cuotas pendientes</p>
+              <p className="fluid-money-small mt-1 font-mono font-semibold text-red-600 tabular-nums">
                 {formatARS(totalPendingInstallments)}
               </p>
             </CardContent>
@@ -167,9 +167,9 @@ export default function ProjectionsPage() {
           <CardContent>
             <div className="space-y-1 text-sm">
               {cashflow.breakdown.subscriptionDetails.map((s) => (
-                <div key={s.merchant} className="flex justify-between">
-                  <span className="text-zinc-700">{s.merchant}</span>
-                  <span className="font-mono text-red-600 tabular-nums">
+                <div key={s.merchant} className="flex min-w-0 justify-between gap-3">
+                  <span className="min-w-0 truncate text-zinc-700">{s.merchant}</span>
+                  <span className="shrink-0 font-mono text-red-600 tabular-nums">
                     {formatARS(s.monthlyAvg)} / mes
                   </span>
                 </div>
@@ -189,7 +189,7 @@ export default function ProjectionsPage() {
         </CardHeader>
         <CardContent>
           {cashflow && cashflow.projection.length > 0 ? (
-            <div className="overflow-x-auto">
+            <div className="responsive-scroll">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-100 text-xs text-zinc-500">
@@ -276,7 +276,7 @@ export default function ProjectionsPage() {
               No tenés compras en cuotas pendientes.
             </p>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="responsive-scroll">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-100 text-xs text-zinc-500">

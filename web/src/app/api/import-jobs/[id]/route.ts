@@ -8,7 +8,9 @@ export async function GET(
 ) {
   const { id } = await params;
   const session = await getSession();
-  const job = await getImportJobForUser(id, session?.userId ?? null);
+  if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
+  const job = await getImportJobForUser(id, session.userId);
 
   if (!job) {
     return NextResponse.json({ error: "No encontrado" }, { status: 404 });

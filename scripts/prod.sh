@@ -9,7 +9,7 @@ bootstrap_stack
 echo "Compilando web..."
 npm --prefix "$WEB_DIR" run build
 
-start_parser_background --host 0.0.0.0 --port 8001
+start_parser_background --host 0.0.0.0 --port 8002
 
 trap cleanup_parser EXIT INT TERM
 

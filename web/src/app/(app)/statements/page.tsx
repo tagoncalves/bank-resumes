@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getStatements } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
@@ -17,7 +18,9 @@ const BANK_COLORS: Record<string, string> = {
 
 export default async function StatementsPage() {
   const session = await getSession();
-  const { statements, total } = await getStatements(1, 50, undefined, session?.userId);
+  if (!session) redirect("/login");
+
+  const { statements, total } = await getStatements(1, 50, undefined, session.userId);
 
   const statementIds = statements.map((s) => s.id);
   const paymentGroups = statementIds.length > 0
@@ -60,9 +63,9 @@ export default async function StatementsPage() {
         <div className="space-y-2">
           {statements.map((s) => (
             <Link key={s.id} href={`/statements/${s.id}`}>
-              <Card className="flex items-center gap-4 px-5 py-4 hover:border-indigo-200 hover:shadow-md transition-all cursor-pointer">
+              <Card className="responsive-card flex flex-col gap-3 overflow-hidden px-4 py-4 transition-all hover:border-indigo-200 hover:shadow-md sm:flex-row sm:items-center sm:gap-4 sm:px-5">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ${BANK_COLORS[s.bankName] ?? "bg-zinc-100 text-zinc-700"}`}
                     >
@@ -78,14 +81,14 @@ export default async function StatementsPage() {
                       </span>
                     )}
                   </div>
-                  <div className="mt-1 flex gap-4 text-xs text-zinc-500">
+                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">
                     <span>Cierre: {formatDate(s.periodEnd)}</span>
                     <span>Vto: {formatDate(s.dueDate)}</span>
                     <span>{s._count.transactions} movimientos</span>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-mono text-base font-semibold text-red-600 tabular-nums">
+                <div className="min-w-0 text-left sm:text-right">
+                  <p className="fluid-money-small font-mono font-semibold text-red-600 tabular-nums">
                     {formatARS(s.balanceSummary?.currentBalance ?? 0)}
                   </p>
                   <StatementPayButton
@@ -137,7 +140,7 @@ export default async function StatementsPage() {
                     }
                   />
                 </div>
-                <ArrowRight className="h-4 w-4 text-zinc-300 flex-shrink-0" />
+                <ArrowRight className="hidden h-4 w-4 flex-shrink-0 text-zinc-300 sm:block" />
               </Card>
             </Link>
           ))}

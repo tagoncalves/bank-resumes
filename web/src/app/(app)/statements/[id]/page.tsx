@@ -1,7 +1,8 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { getStatementById } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 import { formatARS, formatUSD, formatDate, formatMonthYear } from "@/lib/formatters";
 import { dateInputValue } from "@/lib/dates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,8 +16,11 @@ import { RegisterPaymentDialog } from "@/components/statements/register-payment-
 
 export default async function StatementDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const session = await getSession();
+  if (!session) redirect("/login");
+
   const [data, categories] = await Promise.all([
-    getStatementById(id),
+    getStatementById(id, session.userId),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
   ]);
 
@@ -26,7 +30,7 @@ export default async function StatementDetailPage({ params }: { params: Promise<
 
   const paymentsSum = bs
     ? await prisma.transaction.aggregate({
-        where: { statementId: id, transactionType: "DEBIT", deletedAt: null },
+        where: { statementId: id, userId: session.userId, transactionType: "DEBIT", deletedAt: null },
         _sum: { amountArs: true, amountUsd: true },
       })
     : null;
@@ -58,14 +62,14 @@ export default async function StatementDetailPage({ params }: { params: Promise<
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="responsive-row flex items-center justify-between gap-3">
         <Link
           href="/statements"
           className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-700"
         >
           <ArrowLeft className="h-4 w-4" /> Resúmenes
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <a
             href={`/api/statements/${id}/pdf`}
             target="_blank"
@@ -152,8 +156,8 @@ export default async function StatementDetailPage({ params }: { params: Promise<
             <CardTitle className="text-sm font-medium text-zinc-700">Estado de cuenta</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-0 divide-x divide-zinc-100 text-sm">
-              <div className="space-y-2 pr-6">
+            <div className="grid gap-3 text-sm sm:grid-cols-2 sm:divide-x sm:divide-zinc-100">
+              <div className="space-y-2 sm:pr-6">
                 <SummaryRow label="Saldo anterior" value={formatARS(bs.previousBalance)} />
                 <SummaryRow
                   label="Pagos aplicados"
@@ -162,7 +166,7 @@ export default async function StatementDetailPage({ params }: { params: Promise<
                 />
                 <SummaryRow label="Consumos" value={formatARS(bs.totalConsumption)} />
               </div>
-              <div className="space-y-2 pl-6">
+              <div className="space-y-2 sm:pl-6">
                 <SummaryRow label="Comisión cuenta full" value={formatARS(bs.commissionCuentaFull)} />
                 <SummaryRow label="Impuesto de sello" value={formatARS(bs.selloTax)} />
                 <SummaryRow label="IVA" value={formatARS(bs.ivaTax)} />
@@ -173,7 +177,7 @@ export default async function StatementDetailPage({ params }: { params: Promise<
             {(bs.tnaArs || bs.temArs || bs.teaArs) && (
               <div className="mt-4 rounded-md bg-zinc-50 px-4 py-3">
                 <p className="mb-1 text-xs font-medium text-zinc-500">Tasas de interés (ARS)</p>
-                <div className="flex gap-6 text-xs font-mono text-zinc-700">
+                <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs font-mono text-zinc-700">
                   {bs.tnaArs && <span>TNA {bs.tnaArs.toFixed(2)}%</span>}
                   {bs.temArs && <span>TEM {bs.temArs.toFixed(3)}%</span>}
                   {bs.teaArs && <span>TEA {bs.teaArs.toFixed(2)}%</span>}
@@ -195,21 +199,21 @@ export default async function StatementDetailPage({ params }: { params: Promise<
               {categoryBreakdown.map((cat) => {
                 const pct = totalSpend > 0 ? (cat.total / totalSpend) * 100 : 0;
                 return (
-                  <div key={cat.name} className="flex items-center gap-3">
+                  <div key={cat.name} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2 sm:flex sm:items-center sm:gap-3">
                     <span
-                      className="rounded-full px-2 py-0.5 text-[11px] font-medium w-28 text-center shrink-0"
+                      className="truncate rounded-full px-2 py-0.5 text-center text-[11px] font-medium sm:w-28 sm:shrink-0"
                       style={{ background: `${cat.color ?? "#94A3B8"}20`, color: cat.color ?? "#94A3B8" }}
                     >
                       {cat.name}
                     </span>
-                    <div className="flex-1 h-1.5 rounded-full bg-zinc-100 overflow-hidden">
+                    <div className="col-span-2 h-1.5 overflow-hidden rounded-full bg-zinc-100 sm:col-span-1 sm:flex-1">
                       <div
                         className="h-full rounded-full"
                         style={{ width: `${pct.toFixed(1)}%`, background: cat.color ?? "#94A3B8" }}
                       />
                     </div>
-                    <span className="text-xs text-zinc-400 w-6 text-right shrink-0">{cat.count}</span>
-                    <span className="text-xs font-mono font-medium text-red-600 tabular-nums w-28 text-right shrink-0">
+                    <span className="hidden w-6 shrink-0 text-right text-xs text-zinc-400 sm:inline">{cat.count}</span>
+                    <span className="fluid-money-small text-right font-mono font-medium text-red-600 tabular-nums sm:w-28 sm:shrink-0">
                       {formatARS(cat.total)}
                     </span>
                   </div>
@@ -228,6 +232,7 @@ export default async function StatementDetailPage({ params }: { params: Promise<
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
+          <div className="responsive-scroll">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-zinc-100 bg-zinc-50 text-xs text-zinc-500">
@@ -277,6 +282,7 @@ export default async function StatementDetailPage({ params }: { params: Promise<
               ))}
             </tbody>
           </table>
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -293,9 +299,9 @@ function SummaryRow({
   valueClass?: string;
 }) {
   return (
-    <div className="flex justify-between gap-2">
-      <span className="text-zinc-500">{label}</span>
-      <span className={cn("font-mono tabular-nums text-red-600", valueClass)}>{value}</span>
+    <div className="flex min-w-0 justify-between gap-2">
+      <span className="min-w-0 text-zinc-500">{label}</span>
+      <span className={cn("fluid-money-small text-right font-mono tabular-nums text-red-600", valueClass)}>{value}</span>
     </div>
   );
 }

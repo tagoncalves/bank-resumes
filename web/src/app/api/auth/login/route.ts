@@ -29,8 +29,8 @@ export async function POST(req: NextRequest) {
   }
 
   const user = await prisma.$queryRawUnsafe<
-    { id: string; username: string; passwordHash: string; role: string; displayName: string | null }[]
-  >(`SELECT id, username, passwordHash, role, displayName FROM "User" WHERE username = ?`, username.trim().toLowerCase());
+    { id: string; username: string; passwordHash: string; role: string; displayName: string | null; email: string | null; emailVerifiedAt: string | null }[]
+  >(`SELECT id, username, passwordHash, role, displayName, email, emailVerifiedAt FROM "User" WHERE username = ?`, username.trim().toLowerCase());
 
   if (!user.length) {
     return NextResponse.json({ error: "Usuario o contraseña incorrectos" }, { status: 401 });
@@ -41,6 +41,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Usuario o contraseña incorrectos" }, { status: 401 });
   }
 
+  if (user[0].email && !user[0].emailVerifiedAt) {
+    return NextResponse.json(
+      { error: "EMAIL_NOT_VERIFIED", message: "Validá tu email con la clave antes de iniciar sesión" },
+      { status: 403 }
+    );
+  }
+
   const token = await signToken({
     userId: user[0].id,
     username: user[0].username,
@@ -48,7 +55,7 @@ export async function POST(req: NextRequest) {
     displayName: user[0].displayName,
   });
 
-  const res = NextResponse.json({ ok: true, role: user[0].role });
+  const res = NextResponse.json({ ok: true, role: user[0].role, token, tokenType: "Bearer" });
   res.cookies.set(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",

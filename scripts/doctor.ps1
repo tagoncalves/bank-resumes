@@ -180,7 +180,7 @@ if ($env:DATABASE_URL) {
 if ($env:PARSER_SERVICE_URL) {
   Write-Host "[OK] PARSER_SERVICE_URL definido: $($env:PARSER_SERVICE_URL)"
 } else {
-  Write-Host "[INFO] PARSER_SERVICE_URL no está definido. Se usará http://localhost:8001"
+  Write-Host "[INFO] PARSER_SERVICE_URL no está definido. Se usará http://localhost:8002"
 }
 
 if (Test-TcpPort 3000) {
@@ -190,11 +190,11 @@ if (Test-TcpPort 3000) {
   Write-Host "[OK] Puerto 3000 disponible"
 }
 
-if (Test-TcpPort 8001) {
-  Write-Host "[WARN] El puerto 8001 ya está en uso"
-  $issues.Add("Liberar el puerto 8001 o cambiar el puerto del parser")
+if (Test-TcpPort 8002) {
+  Write-Host "[WARN] El puerto 8002 ya está en uso"
+  $issues.Add("Liberar el puerto 8002 o cambiar el puerto del parser")
 } else {
-  Write-Host "[OK] Puerto 8001 disponible"
+  Write-Host "[OK] Puerto 8002 disponible"
 }
 
 Write-Host ""

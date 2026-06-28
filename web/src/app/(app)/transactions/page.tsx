@@ -193,28 +193,28 @@ function TransactionsInner() {
   return (
     <div className="space-y-4">
       {/* Header row: form left, net total right */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <AddTransactionForm
           onSaved={fetchTransactions}
           prefill={prefill}
           onPrefillConsumed={() => setPrefill(null)}
         />
-        <div className="grid w-full grid-cols-3 gap-2 text-right sm:w-auto sm:shrink-0">
-          <div className="rounded-lg border border-zinc-100 bg-white px-3 py-2 shadow-sm">
+        <div className="transaction-summary-grid lg:shrink-0">
+          <div className="responsive-card overflow-hidden rounded-lg border border-zinc-100 bg-white px-3 py-2 shadow-sm">
             <p className="text-[10px] uppercase tracking-wide text-zinc-400">Gastos</p>
-            <p className="font-mono text-sm font-semibold tabular-nums text-red-600">{formatShownMoney(shownDebitTotal)}</p>
+            <p className="transaction-summary-money font-mono font-semibold tabular-nums text-red-600">{formatShownMoney(shownDebitTotal)}</p>
           </div>
-          <div className="rounded-lg border border-zinc-100 bg-white px-3 py-2 shadow-sm">
+          <div className="responsive-card overflow-hidden rounded-lg border border-zinc-100 bg-white px-3 py-2 shadow-sm">
             <p className="text-[10px] uppercase tracking-wide text-zinc-400">Ingresos</p>
-            <p className="font-mono text-sm font-semibold tabular-nums text-emerald-600">+{formatShownMoney(shownCreditTotal)}</p>
+            <p className="transaction-summary-money font-mono font-semibold tabular-nums text-emerald-600">+{formatShownMoney(shownCreditTotal)}</p>
           </div>
-          <div className="rounded-lg border border-zinc-100 bg-white px-3 py-2 shadow-sm">
+          <div className="responsive-card overflow-hidden rounded-lg border border-zinc-100 bg-white px-3 py-2 shadow-sm">
             <p className="text-[10px] uppercase tracking-wide text-zinc-400">Neto</p>
-            <p className={`font-mono text-sm font-semibold tabular-nums ${isNegativeNet ? "text-emerald-600" : "text-zinc-900"}`}>
+            <p className={`transaction-summary-money font-mono font-semibold tabular-nums ${isNegativeNet ? "text-emerald-600" : "text-zinc-900"}`}>
               {shownNetTotal < 0 ? "+" : shownNetTotal > 0 ? "-" : ""}{formatShownMoney(Math.abs(shownNetTotal))}
             </p>
           </div>
-          <p className="col-span-3 text-[10px] text-zinc-400">{total} movimientos en el filtro</p>
+          <p className="text-[10px] text-zinc-400 min-[480px]:col-span-3">{total} movimientos en el filtro</p>
         </div>
       </div>
 
@@ -297,13 +297,14 @@ function TransactionsInner() {
         )}
       </div>
 
-      <Card>
+      <Card className="overflow-hidden">
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center justify-center py-16 text-sm text-zinc-400">Cargando...</div>
           ) : transactions.length === 0 ? (
             <div className="flex items-center justify-center py-16 text-sm text-zinc-400">Sin resultados</div>
           ) : (
+            <div className="responsive-scroll">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-100 bg-zinc-50 text-xs text-zinc-500">
@@ -412,12 +413,13 @@ function TransactionsInner() {
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </CardContent>
       </Card>
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
           <button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page === 1}

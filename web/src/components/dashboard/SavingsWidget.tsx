@@ -15,7 +15,7 @@ export default function SavingsWidget({
   periodLabel: string;
 }) {
   return (
-    <Card>
+    <Card className="responsive-card overflow-hidden">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-sm font-medium text-foreground">
           <PiggyBank className="h-4 w-4 text-saving" />
@@ -23,13 +23,13 @@ export default function SavingsWidget({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <p className={cn("font-mono text-3xl font-semibold tabular-nums", cumulativeNetSavings >= 0 ? "text-income" : "text-expense")}>
+        <p className={cn("fluid-metric-xl font-mono font-semibold tabular-nums", cumulativeNetSavings >= 0 ? "text-income" : "text-expense")}>
           {formatARS(cumulativeNetSavings)}
         </p>
-        <div className="mt-2 text-sm text-muted">{periodLabel}</div>
-        <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-sm">
-          <span className="text-muted">Promedio mensual neto</span>
-          <span className={cn("font-mono tabular-nums", averageMonthlyNet >= 0 ? "text-income" : "text-expense")}>
+        <div className="fluid-subtle mt-2 text-muted">{periodLabel}</div>
+        <div className="mt-4 flex min-w-0 items-center justify-between gap-3 border-t border-border pt-3 text-sm">
+          <span className="min-w-0 text-muted">Promedio mensual neto</span>
+          <span className={cn("fluid-money-small min-w-0 text-right font-mono tabular-nums", averageMonthlyNet >= 0 ? "text-income" : "text-expense")}>
             {formatARS(averageMonthlyNet)}
           </span>
         </div>

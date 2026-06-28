@@ -96,16 +96,16 @@ export default function SpendingByCategory({ data, currentMonth, currentMonths, 
             <button
               key={d.categoryId}
               onClick={() => navigateToCategory(d.categoryId)}
-              className="flex w-full items-center justify-between rounded px-1 py-0.5 text-xs transition-colors hover:bg-surface-alt"
+              className="flex w-full min-w-0 items-center justify-between gap-2 rounded px-1 py-0.5 text-xs transition-colors hover:bg-surface-alt"
             >
-              <div className="flex items-center gap-1.5">
+              <div className="flex min-w-0 items-center gap-1.5">
                 <span
-                  className="inline-block h-2.5 w-2.5 rounded-full"
+                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
                   style={{ background: d.color }}
                 />
-                <span className="text-muted">{d.categoryName}</span>
+                <span className="truncate text-muted">{d.categoryName}</span>
               </div>
-              <span className="font-mono text-foreground">{formatARS(d.total)}</span>
+              <span className="fluid-money-small max-w-[48%] text-right font-mono text-foreground">{formatARS(d.total)}</span>
             </button>
           ))}
         </div>

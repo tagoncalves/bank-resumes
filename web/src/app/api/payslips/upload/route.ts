@@ -25,6 +25,8 @@ function isSupportedPayslipFile(file: File) {
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
+    if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
     const ip = getClientIp(req);
     const rateLimit = enforceRateLimit({
       key: `payslip-upload:${ip}`,
@@ -51,7 +53,7 @@ export async function POST(req: NextRequest) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const hash = crypto.createHash("sha256").update(buffer).digest("hex");
-    const userWhere = session?.userId ? { userId: session.userId } : { userId: null };
+    const userWhere = { userId: session.userId };
     const storedFilename = createStoredFilename(file.name);
 
     const existing = await prisma.payslip.findFirst({ where: { ...userWhere, sourceHash: hash } });
@@ -95,7 +97,7 @@ export async function POST(req: NextRequest) {
       const created = await prisma.$transaction(async (tx) => {
         const incomeTransaction = await tx.transaction.create({
           data: {
-            userId: session?.userId ?? null,
+            userId: session.userId,
             date: parseDateOnly(payDate),
             merchantName: employerName,
             normalizedMerchant: employerName.replace(/\s+/g, " ").trim(),
@@ -121,7 +123,7 @@ export async function POST(req: NextRequest) {
             processingStatus: "COMPLETED",
             incomeTransactionId: incomeTransaction.id,
             analysisProvider: "MANUAL",
-            userId: session?.userId ?? null,
+            userId: session.userId,
           },
         });
 
@@ -155,7 +157,7 @@ export async function POST(req: NextRequest) {
           sourceHash: hash,
           processingStatus: "QUEUED",
           analysisProvider: "AI",
-          ...(session?.userId ? { user: { connect: { id: session.userId } } } : {}),
+          user: { connect: { id: session.userId } },
         },
       });
       savePendingPayslipPdf(queuedPayslip.id, buffer, file.name, storedFilename);
@@ -227,7 +229,7 @@ export async function POST(req: NextRequest) {
             sourceHash: hash,
             processingStatus: "QUEUED",
             analysisProvider: "AI",
-            ...(session?.userId ? { user: { connect: { id: session.userId } } } : {}),
+            user: { connect: { id: session.userId } },
           },
         });
         savePendingPayslipPdf(queuedPayslip.id, buffer, file.name, storedFilename);
@@ -270,7 +272,7 @@ export async function POST(req: NextRequest) {
           analysisNotes: analysis.payslip.consistency.notes.join("\n") || null,
           analysisStructuredJson: analysis.artifacts.parsed_result_json,
         };
-      } catch (error) {
+      } catch {
         const queuedPayslip = await prisma.payslip.create({
           data: {
             rawFilename: file.name,
@@ -278,13 +280,7 @@ export async function POST(req: NextRequest) {
             sourceHash: hash,
             processingStatus: "QUEUED",
             analysisProvider: "AI",
-            ...(session?.userId
-              ? {
-                  user: {
-                    connect: { id: session.userId },
-                  },
-                }
-              : {}),
+            user: { connect: { id: session.userId } },
           },
         });
 
@@ -317,7 +313,7 @@ export async function POST(req: NextRequest) {
 
         const incomeTransaction = await tx.transaction.create({
           data: {
-            userId: session?.userId ?? null,
+            userId: session.userId,
             date: parseDateOnly(mappedPayslip.payDate),
             merchantName: mappedPayslip.employerName,
             normalizedMerchant: mappedPayslip.employerName.replace(/\s+/g, " ").trim(),
@@ -351,9 +347,7 @@ export async function POST(req: NextRequest) {
           analysisConfidence: mappedPayslip.analysisConfidence,
           analysisNotes: mappedPayslip.analysisNotes,
           analysisStructuredJson: mappedPayslip.analysisStructuredJson,
-          ...(session?.userId
-            ? { user: { connect: { id: session.userId } } }
-            : {}),
+          user: { connect: { id: session.userId } },
           ...(incomeTransactionId
             ? { incomeTransaction: { connect: { id: incomeTransactionId } } }
             : {}),

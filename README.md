@@ -96,7 +96,7 @@ npm run dev
 
 Esto levanta:
 
-- parser Python en `http://localhost:8001`
+- parser Python en `http://localhost:8002`
 - web Next.js en `http://localhost:3000`
 - worker AI que consume `ImportJob` en background
 
@@ -118,7 +118,7 @@ Las variables pueden definirse en la sesión, en `web/.env.local` o en el entorn
 | Variable | Descripción | Ejemplo |
 |---|---|---|
 | `DATABASE_URL` | URL de la base de datos | `file:./prisma/dev.db` (local) · `postgresql://...` (producción) |
-| `PARSER_SERVICE_URL` | URL del servicio Python | `http://localhost:8001` (local) · URL de Railway (producción) |
+| `PARSER_SERVICE_URL` | URL del servicio Python | `http://localhost:8002` (local) · URL de Railway (producción) |
 | `JWT_SECRET` | secreto JWT para autenticación | `super-secret-local` |
 | `DEEPSEEK_API_KEY` | API key para fallback AI | `sk-...` |
 | `DEEPSEEK_BASE_URL` | endpoint OpenAI-compatible del proveedor | `https://api.deepseek.com` |

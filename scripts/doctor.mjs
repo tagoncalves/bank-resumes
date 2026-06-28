@@ -10,6 +10,8 @@ import {
   portInUse,
   rootDir,
   webDir,
+  defaultParserPort,
+  defaultParserServiceUrl,
 } from "./lib.mjs";
 
 const issues = [];
@@ -122,7 +124,7 @@ if (process.env.DATABASE_URL) logOk(`DATABASE_URL definido: ${process.env.DATABA
 else logInfo("DATABASE_URL no está definido. Se usará el default local en los scripts raíz");
 
 if (process.env.PARSER_SERVICE_URL) logOk(`PARSER_SERVICE_URL definido: ${process.env.PARSER_SERVICE_URL}`);
-else logInfo("PARSER_SERVICE_URL no está definido. Se usará http://localhost:8001");
+else logInfo(`PARSER_SERVICE_URL no está definido. Se usará ${defaultParserServiceUrl}`);
 
 if (await portInUse(3000)) {
   logWarn("El puerto 3000 ya está en uso");
@@ -131,11 +133,11 @@ if (await portInUse(3000)) {
   logOk("Puerto 3000 disponible");
 }
 
-if (await portInUse(8001)) {
-  logWarn("El puerto 8001 ya está en uso");
-  issues.push("Liberar el puerto 8001 o cambiar el puerto del parser");
+if (await portInUse(Number(defaultParserPort))) {
+  logWarn(`El puerto ${defaultParserPort} ya está en uso`);
+  issues.push(`Liberar el puerto ${defaultParserPort} o cambiar el puerto del parser`);
 } else {
-  logOk("Puerto 8001 disponible");
+  logOk(`Puerto ${defaultParserPort} disponible`);
 }
 
 console.log("");

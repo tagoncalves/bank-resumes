@@ -321,7 +321,7 @@ export function AddTransactionForm({
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="responsive-grid-form">
           <div>
             <label className="mb-1 block text-xs text-muted">Fecha</label>
             <input
@@ -396,7 +396,7 @@ export function AddTransactionForm({
               Es en cuotas
             </label>
             {form.isInstallment && (
-              <div className="mt-2 flex items-center gap-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <div>
                   <label className="mb-1 block text-xs text-muted">Cuota actual</label>
                   <input
@@ -418,7 +418,7 @@ export function AddTransactionForm({
                     className="w-20 ds-input font-mono"
                   />
                 </div>
-                <p className="mt-5 text-xs text-muted">Importe = valor de 1 cuota</p>
+                <p className="mt-5 min-w-[9rem] flex-1 text-xs text-muted">Importe = valor de 1 cuota</p>
               </div>
             )}
           </div>
@@ -436,7 +436,7 @@ export function AddTransactionForm({
           </label>
           {form.createRecurring && (
             <div className="mt-3 space-y-3">
-              <div className="grid gap-3 sm:grid-cols-4">
+              <div className="responsive-grid-form">
                 <div>
                   <label className="mb-1 block text-xs text-muted">Periodicidad</label>
                   <select
@@ -507,7 +507,7 @@ export function AddTransactionForm({
                 </label>
                 {form.recurringBackfill && (
                   <div className="mt-3 space-y-3">
-                    <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="responsive-grid-form">
                       <div>
                         <label className="mb-1 block text-xs text-muted">Desde</label>
                         <input

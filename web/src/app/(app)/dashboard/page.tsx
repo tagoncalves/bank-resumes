@@ -46,7 +46,9 @@ export default async function DashboardPage({
   const origin = sp.origin ?? "all";
 
   const session = await getSession();
-  const data = await getDashboardSummary({ months, from, to, userId: session?.userId, origin });
+  if (!session) redirect("/login");
+
+  const data = await getDashboardSummary({ months, from, to, userId: session.userId, origin });
 
   const periodLabel = sp.month
     ? new Date(from!.getFullYear(), from!.getMonth(), 1)
@@ -108,11 +110,11 @@ export default async function DashboardPage({
           netBalanceUsd={data.netBalanceUsd}
           periodLabel={periodLabel}
         />
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <div className="responsive-grid">
         <MonthlyTrend data={data.monthlyTrend} />
         <IncomeExpenseTrend data={data.monthlyTrend} />
       </div>
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <div className="responsive-grid">
         <SpendingByCategory
           data={data.spendingByCategory}
           currentMonth={sp.month}
@@ -125,7 +127,7 @@ export default async function DashboardPage({
           periodLabel={periodLabel}
         />
       </div>
-      <div className="grid grid-cols-1 gap-5">
+      <div className="responsive-grid">
         <TopMerchants data={data.topMerchants} />
       </div>
     </div>

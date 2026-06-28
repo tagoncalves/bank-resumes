@@ -66,7 +66,7 @@ install_web_deps() {
 
 configure_env() {
   export DATABASE_URL="${DATABASE_URL:-file:./prisma/dev.db}"
-  export PARSER_SERVICE_URL="${PARSER_SERVICE_URL:-http://localhost:8001}"
+  export PARSER_SERVICE_URL="${PARSER_SERVICE_URL:-http://localhost:8002}"
 }
 
 prepare_web_db() {
@@ -95,13 +95,13 @@ wait_for_parser_health() {
   i=0
   while [ "$i" -lt 30 ]; do
     if command -v curl >/dev/null 2>&1; then
-      if curl -fsS "http://localhost:8001/health" >/dev/null 2>&1; then
+      if curl -fsS "http://localhost:8002/health" >/dev/null 2>&1; then
         return
       fi
     else
       if "$PARSER_PYTHON" - <<'PY' >/dev/null 2>&1
 from urllib.request import urlopen
-urlopen("http://localhost:8001/health", timeout=2)
+urlopen("http://localhost:8002/health", timeout=2)
 PY
       then
         return
@@ -111,7 +111,7 @@ PY
     sleep 1
   done
 
-  echo "El parser no respondió en http://localhost:8001/health"
+  echo "El parser no respondió en http://localhost:8002/health"
   exit 1
 }
 

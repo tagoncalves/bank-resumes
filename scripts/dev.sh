@@ -5,7 +5,7 @@ set -eu
 . "$(dirname -- "$0")/common.sh"
 
 bootstrap_stack
-start_parser_background --port 8001
+start_parser_background --port 8002
 
 trap cleanup_parser EXIT INT TERM
 

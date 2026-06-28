@@ -47,9 +47,9 @@ function UploadModal({ kind, onClose }: { kind: UploadModalKind; onClose: () => 
   const title = kind === "statement" ? "Importar resumen" : "Cargar recibo de sueldo";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 backdrop-blur-sm sm:p-4" onClick={onClose}>
       <div
-        className="w-full max-w-2xl rounded-xl border border-border bg-surface text-foreground shadow-xl"
+        className="max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-hidden rounded-xl border border-border bg-surface text-foreground shadow-xl sm:max-h-[calc(100dvh-2rem)]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
@@ -58,7 +58,7 @@ function UploadModal({ kind, onClose }: { kind: UploadModalKind; onClose: () => 
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="p-5">
+        <div className="max-h-[calc(100dvh-5.5rem)] overflow-y-auto p-3 sm:p-5">
           {kind === "statement"
             ? <StatementUploadPanel onComplete={onClose} />
             : <PayslipUploadPanel onComplete={onClose} />}

@@ -5,8 +5,10 @@ import { toMoneyNumber } from "@/lib/money";
 
 export async function GET() {
   const session = await getSession();
+  if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
   const payslips = await prisma.payslip.findMany({
-    where: { userId: session?.userId ?? null },
+    where: { userId: session.userId },
     orderBy: { uploadedAt: "desc" },
   });
 

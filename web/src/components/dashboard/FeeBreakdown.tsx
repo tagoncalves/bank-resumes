@@ -38,7 +38,7 @@ export default function FeeBreakdown({ data }: { data: FeeData }) {
   })).filter((d) => d.value > 0);
 
   return (
-    <Card>
+    <Card className="responsive-card overflow-hidden">
       <CardHeader>
         <CardTitle className="text-sm font-medium text-foreground">
           Comisiones e impuestos
@@ -64,9 +64,9 @@ export default function FeeBreakdown({ data }: { data: FeeData }) {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-            <div className="mt-3 flex justify-between border-t pt-2">
-              <span className="text-xs text-muted">Total cargos adicionales</span>
-              <span className="font-mono text-sm font-semibold text-expense">
+            <div className="mt-3 flex min-w-0 justify-between gap-3 border-t pt-2">
+              <span className="min-w-0 text-xs text-muted">Total cargos adicionales</span>
+              <span className="fluid-money-small min-w-0 text-right font-mono font-semibold text-expense">
                 {formatARS(data.total)}
               </span>
             </div>

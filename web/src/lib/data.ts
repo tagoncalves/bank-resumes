@@ -192,9 +192,9 @@ export async function getStatements(page = 1, limit = 50, bankName?: string, use
   };
 }
 
-export async function getStatementById(id: string) {
-  const statement = await prisma.statement.findUnique({
-    where: { id },
+export async function getStatementById(id: string, userId: string) {
+  const statement = await prisma.statement.findFirst({
+    where: { id, userId },
     include: {
       reviewedBy: { select: { username: true, displayName: true } },
       card: { include: { bank: true } },

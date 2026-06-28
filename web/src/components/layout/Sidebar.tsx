@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, FileText, List, Users, LogOut, ShieldAlert, FileBadge2, Bot, Ban, Bell, Database, BarChart3 } from "lucide-react";
+import { LayoutDashboard, FileText, List, Users, LogOut, ShieldAlert, FileBadge2, Bot, Ban, Bell, Database, BarChart3, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import type { LucideIcon } from "lucide-react";
@@ -19,10 +19,11 @@ const NAV_ITEMS = [
 
 interface Me { username: string; role: string; displayName: string | null }
 
-function SidebarLink({ href, label, icon: Icon, active }: { href: string; label: string; icon: LucideIcon; active: boolean }) {
+function SidebarLink({ href, label, icon: Icon, active, onClick }: { href: string; label: string; icon: LucideIcon; active: boolean; onClick?: () => void }) {
   return (
     <Link
       href={href}
+      onClick={onClick}
       className={cn(
         "flex items-center gap-2.5 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
         active
@@ -36,7 +37,7 @@ function SidebarLink({ href, label, icon: Icon, active }: { href: string; label:
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({ isMobileOpen = false, onClose }: { isMobileOpen?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
@@ -52,34 +53,59 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="flex h-screen w-56 flex-col border-r border-border bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/85">
+    <>
+      <button
+        type="button"
+        aria-label="Cerrar navegación"
+        onClick={onClose}
+        className={cn(
+          "fixed inset-0 z-40 bg-black/35 backdrop-blur-[2px] transition-opacity md:hidden",
+          isMobileOpen ? "opacity-100" : "pointer-events-none opacity-0"
+        )}
+      />
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 flex h-dvh w-[min(18rem,86vw)] flex-col border-r border-border bg-surface/95 shadow-xl backdrop-blur transition-transform duration-200 supports-[backdrop-filter]:bg-surface/85 md:static md:z-auto md:h-dvh md:w-56 md:translate-x-0 md:shadow-none",
+          isMobileOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
       {/* Logo */}
-      <div className="flex items-center gap-2.5 border-b border-border px-5 py-4">
-        <NerumMark className="h-8 w-8 shrink-0 shadow-sm" />
-        <div>
-          <p className="text-sm font-semibold text-foreground">Nerum Finance</p>
-          <p className="text-[10px] leading-none text-muted">Gestor financiero</p>
+      <div className="flex items-center justify-between gap-2.5 border-b border-border px-5 py-4">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <NerumMark className="h-8 w-8 shrink-0 shadow-sm" />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-foreground">Nerum Finance</p>
+            <p className="text-[10px] leading-none text-muted">Gestor financiero</p>
+          </div>
         </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Cerrar navegación"
+          className="rounded border border-transparent p-1.5 text-muted hover:border-border hover:bg-[var(--color-hover)] hover:text-foreground md:hidden"
+        >
+          <X className="h-4 w-4" />
+        </button>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-0.5 p-3">
+      <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const active = pathname.startsWith(item.href);
           return (
-            <SidebarLink key={item.href} href={item.href} label={item.label} icon={Icon} active={active} />
+            <SidebarLink key={item.href} href={item.href} label={item.label} icon={Icon} active={active} onClick={onClose} />
           );
         })}
         {/* Admin-only */}
         {me?.role === "ADMIN" && (
           <>
             <div className="my-2 border-t border-border" />
-            <SidebarLink href="/admin/master-data" label="Datos maestros" icon={Database} active={pathname.startsWith("/admin/master-data")} />
-            <SidebarLink href="/admin/users" label="Usuarios" icon={Users} active={pathname.startsWith("/admin/users")} />
-            <SidebarLink href="/admin/review-statements" label="Revisión AI" icon={ShieldAlert} active={pathname.startsWith("/admin/review-statements")} />
-            <SidebarLink href="/admin/ai-bans" label="Baneos AI" icon={Ban} active={pathname.startsWith("/admin/ai-bans")} />
-            <SidebarLink href="/admin/notifications" label="Notificaciones" icon={Bell} active={pathname.startsWith("/admin/notifications")} />
+            <SidebarLink href="/admin/master-data" label="Datos maestros" icon={Database} active={pathname.startsWith("/admin/master-data")} onClick={onClose} />
+            <SidebarLink href="/admin/users" label="Usuarios" icon={Users} active={pathname.startsWith("/admin/users")} onClick={onClose} />
+            <SidebarLink href="/admin/review-statements" label="Revisión AI" icon={ShieldAlert} active={pathname.startsWith("/admin/review-statements")} onClick={onClose} />
+            <SidebarLink href="/admin/ai-bans" label="Baneos AI" icon={Ban} active={pathname.startsWith("/admin/ai-bans")} onClick={onClose} />
+            <SidebarLink href="/admin/notifications" label="Notificaciones" icon={Bell} active={pathname.startsWith("/admin/notifications")} onClick={onClose} />
           </>
         )}
       </nav>
@@ -103,6 +129,7 @@ export default function Sidebar() {
         )}
         <p className="text-[11px] text-muted">BBVA · Galicia</p>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

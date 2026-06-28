@@ -1,5 +1,5 @@
 import { SignJWT, jwtVerify } from "jose";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import type { NextRequest } from "next/server";
 
 export interface SessionPayload {
@@ -11,6 +11,7 @@ export interface SessionPayload {
 
 export const COOKIE_NAME = "auth_token";
 const EXPIRY = "7d";
+const BEARER_PREFIX = "Bearer ";
 
 function getJwtSecret(): Uint8Array {
   const secret = process.env.JWT_SECRET;
@@ -43,16 +44,31 @@ export async function verifyToken(token: string): Promise<SessionPayload | null>
   }
 }
 
+export function getBearerToken(authorization: string | null): string | null {
+  if (!authorization?.startsWith(BEARER_PREFIX)) return null;
+  const token = authorization.slice(BEARER_PREFIX.length).trim();
+  return token.length > 0 ? token : null;
+}
+
+export function getTokenFromRequest(req: NextRequest): string | null {
+  return getBearerToken(req.headers.get("authorization")) ?? req.cookies.get(COOKIE_NAME)?.value ?? null;
+}
+
+export async function getSessionToken(): Promise<string | null> {
+  const authorization = (await headers()).get("authorization");
+  return getBearerToken(authorization) ?? (await cookies()).get(COOKIE_NAME)?.value ?? null;
+}
+
 // Server component / Route handler helper
 export async function getSession(): Promise<SessionPayload | null> {
-  const token = (await cookies()).get(COOKIE_NAME)?.value;
+  const token = await getSessionToken();
   if (!token) return null;
   return verifyToken(token);
 }
 
 // Middleware helper (reads from request directly)
 export async function getSessionFromRequest(req: NextRequest): Promise<SessionPayload | null> {
-  const token = req.cookies.get(COOKIE_NAME)?.value;
+  const token = getTokenFromRequest(req);
   if (!token) return null;
   return verifyToken(token);
 }

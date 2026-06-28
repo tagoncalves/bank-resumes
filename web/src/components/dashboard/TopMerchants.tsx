@@ -11,7 +11,7 @@ interface Merchant {
 
 export default function TopMerchants({ data }: { data: Merchant[] }) {
   return (
-    <Card>
+    <Card className="responsive-card overflow-hidden">
       <CardHeader>
         <CardTitle className="text-sm font-medium text-foreground">Top comercios</CardTitle>
       </CardHeader>
@@ -21,19 +21,19 @@ export default function TopMerchants({ data }: { data: Merchant[] }) {
         ) : (
           <div className="space-y-2">
             {data.map((m, i) => (
-              <div key={i} className="flex items-center gap-3">
+              <div key={i} className="flex min-w-0 items-center gap-3">
                 <span className="w-5 text-right text-xs font-medium text-muted">{i + 1}</span>
                 <div className="flex-1 min-w-0">
                   <p className="truncate text-sm font-medium text-foreground">{m.merchantName}</p>
-                  <div className="flex items-center gap-1">
+                  <div className="flex min-w-0 items-center gap-1">
                     <span
                       className="inline-block h-1.5 w-1.5 rounded-full"
                       style={{ background: m.categoryColor }}
                     />
-                    <span className="text-xs text-muted">{m.categoryName} · {m.transactionCount} op.</span>
+                    <span className="truncate text-xs text-muted">{m.categoryName} · {m.transactionCount} op.</span>
                   </div>
                 </div>
-                <span className="font-mono text-sm font-medium tabular-nums text-foreground">
+                <span className="fluid-money-small max-w-[46%] text-right font-mono font-medium tabular-nums text-foreground">
                   {formatARS(m.total)}
                 </span>
               </div>

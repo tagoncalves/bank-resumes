@@ -87,9 +87,9 @@ export function DashboardFilter({
   });
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="responsive-scroll -mx-3 flex items-center gap-2 px-3 sm:mx-0 sm:flex-wrap sm:px-0">
       {/* Rolling window buttons */}
-      <div className="flex gap-1">
+      <div className="flex shrink-0 gap-1">
         {WINDOWS.map((w) => (
           <FilterPill
             key={w.value}
@@ -101,10 +101,10 @@ export function DashboardFilter({
         ))}
       </div>
 
-      <div className="h-4 w-px bg-border" />
+      <div className="h-4 w-px shrink-0 bg-border" />
 
       {/* Month navigation */}
-      <div className="flex items-center gap-1">
+      <div className="flex shrink-0 items-center gap-1">
         <button
           onClick={prevMonth}
           className="ds-icon-button"
@@ -127,9 +127,9 @@ export function DashboardFilter({
         </button>
       </div>
 
-      <div className="h-4 w-px bg-border" />
+      <div className="h-4 w-px shrink-0 bg-border" />
 
-      <div className="flex gap-1">
+      <div className="flex shrink-0 gap-1">
         {ORIGINS.map((origin) => (
           <FilterPill
             key={origin.value}

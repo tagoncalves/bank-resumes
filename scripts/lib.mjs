@@ -11,6 +11,8 @@ export const rootDir = path.resolve(__dirname, "..");
 export const webDir = path.join(rootDir, "web");
 export const parserDir = path.join(rootDir, "parser");
 export const isWindows = process.platform === "win32";
+export const defaultParserPort = "8002";
+export const defaultParserServiceUrl = `http://localhost:${defaultParserPort}`;
 
 export function parserVenvDir() {
   return path.join(parserDir, ".venv");
@@ -38,7 +40,7 @@ export function ensureDirExists(dirPath, label) {
 
 export function configureDefaultEnv() {
   process.env.DATABASE_URL ||= "file:./prisma/dev.db";
-  process.env.PARSER_SERVICE_URL ||= "http://localhost:8001";
+  process.env.PARSER_SERVICE_URL ||= defaultParserServiceUrl;
   process.env.WORKER_SHARED_SECRET ||= "dev-worker-secret";
 }
 
@@ -185,14 +187,14 @@ export function startParserDev() {
       "--ext",
       "py",
       "--exec",
-      `\"${parserVenvPython()}\" -m uvicorn main:app --port 8001`,
+      `\"${parserVenvPython()}\" -m uvicorn main:app --port ${defaultParserPort}`,
     ],
     { cwd: parserDir, shell: true }
   );
 }
 
 export function startParserProd() {
-  return spawnCommand(parserVenvPython(), ["-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"], {
+  return spawnCommand(parserVenvPython(), ["-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", defaultParserPort], {
     cwd: parserDir,
   });
 }
@@ -216,7 +218,7 @@ export async function buildWeb() {
   await runNpm(["--prefix", webDir, "run", "build"]);
 }
 
-export async function waitForParserHealth(url = "http://localhost:8001/health", attempts = 30) {
+export async function waitForParserHealth(url = `${defaultParserServiceUrl}/health`, attempts = 30) {
   console.log("Esperando healthcheck del parser...");
 
   for (let i = 0; i < attempts; i += 1) {

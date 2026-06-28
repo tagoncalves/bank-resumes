@@ -16,6 +16,8 @@ function isUnsupportedBankError(error: unknown) {
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
+  if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
   const ip = getClientIp(req);
   const rateLimit = enforceRateLimit({
     key: `statement-upload:${ip}`,
@@ -43,7 +45,7 @@ export async function POST(req: NextRequest) {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
   const hash = crypto.createHash("sha256").update(buffer).digest("hex");
-  const userWhere = session?.userId ? { userId: session.userId } : { userId: null };
+  const userWhere = { userId: session.userId };
 
   // Duplicate check is scoped per user: different users can import the same PDF.
   const existing = await prisma.statement.findFirst({ where: { ...userWhere, sourceHash: hash } });
@@ -99,7 +101,7 @@ export async function POST(req: NextRequest) {
     }
 
     const job = await createAIImportJob({
-      userId: session?.userId ?? null,
+      userId: session.userId,
       sourceHash: hash,
       rawFilename: file.name,
       storedFilename: createStoredFilename(file.name, ".pdf"),
@@ -125,7 +127,7 @@ export async function POST(req: NextRequest) {
 
   const storedFilename = createStoredFilename(file.name, ".pdf");
   const statement = await persistParsedStatement(parsed, {
-    userId: session?.userId ?? null,
+    userId: session.userId,
     sourceHash: hash,
     rawFilename: file.name,
     storedFilename,
@@ -138,9 +140,7 @@ export async function POST(req: NextRequest) {
 
   saveStatementPdf(statement.id, buffer, storedFilename);
 
-  if (session?.userId) {
-    await linkPaymentsToStatement(statement.id, session.userId, parsed.transactions);
-  }
+  await linkPaymentsToStatement(statement.id, session.userId, parsed.transactions);
 
   return NextResponse.json(
     {

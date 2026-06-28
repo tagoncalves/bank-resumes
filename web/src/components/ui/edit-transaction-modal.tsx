@@ -128,7 +128,7 @@ export function EditTransactionModal({
             </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="responsive-grid-detail">
             <div>
               <label className="mb-1 block text-xs text-muted">Fecha</label>
               <input
@@ -152,7 +152,7 @@ export function EditTransactionModal({
                 ))}
               </select>
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className="mb-1 block text-xs text-muted">Descripción</label>
               <input
                 type="text"

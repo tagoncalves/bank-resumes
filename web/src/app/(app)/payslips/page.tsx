@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
@@ -13,11 +14,13 @@ export default async function PayslipsPage({
   searchParams: Promise<{ bank?: string }>;
 }) {
   const session = await getSession();
+  if (!session) redirect("/login");
+
   const sp = await searchParams;
   const selectedBank = sp.bank;
 
   const allPayslips = await prisma.payslip.findMany({
-    where: { userId: session?.userId ?? null },
+    where: { userId: session.userId },
     orderBy: { uploadedAt: "desc" },
     select: {
       id: true,
@@ -82,9 +85,9 @@ export default async function PayslipsPage({
         <div className="space-y-2">
           {payslips.map((payslip) => (
             <Link key={payslip.id} href={`/payslips/${payslip.id}`}>
-              <Card className="flex cursor-pointer items-center gap-4 px-5 py-4 transition-all hover:border-indigo-200 hover:shadow-md">
+              <Card className="responsive-card flex cursor-pointer flex-col gap-3 overflow-hidden px-4 py-4 transition-all hover:border-indigo-200 hover:shadow-md sm:flex-row sm:items-center sm:gap-4 sm:px-5">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
                       Recibo PDF
                     </span>
@@ -122,21 +125,21 @@ export default async function PayslipsPage({
                       {payslip.employerName ?? payslip.rawFilename}
                     </span>
                   </div>
-                  <div className="mt-1 flex gap-4 text-xs text-zinc-500">
+                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">
                     {payslip.periodLabel && <span>Período: {payslip.periodLabel}</span>}
                     {payslip.payDate && <span>Pago: {formatDate(payslip.payDate)}</span>}
                     <span>Subido: {new Date(payslip.uploadedAt).toLocaleString("es-AR")}</span>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-mono text-base font-semibold text-zinc-900 tabular-nums">
+                <div className="min-w-0 text-left sm:text-right">
+                  <p className="fluid-money-small font-mono font-semibold text-zinc-900 tabular-nums">
                     {payslip.netAmount != null ? formatARS(toMoneyNumber(payslip.netAmount)) : "—"}
                   </p>
                   <p className="text-xs text-zinc-400">
                     {payslip.employeeName ?? "Ingreso detectado"}
                   </p>
                 </div>
-                <ArrowRight className="h-4 w-4 flex-shrink-0 text-zinc-300" />
+                <ArrowRight className="hidden h-4 w-4 flex-shrink-0 text-zinc-300 sm:block" />
               </Card>
             </Link>
           ))}
