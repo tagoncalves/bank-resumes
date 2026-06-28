@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { categorizeTransaction } from "@/lib/categorizer";
 import { money, nullableMoney } from "@/lib/money";
 import { parseDateOnly } from "@/lib/dates";
-import type { AIParsedStatement, ParsedStatement } from "@/lib/pdf-parser/types";
+import type { AIParsedStatement, ParsedStatement, ParsedTransaction } from "@/lib/pdf-parser/types";
 
 type PersistOptions = {
   userId?: string | null;
@@ -122,6 +122,85 @@ export async function persistParsedStatement(
   });
 }
 
+export async function linkPaymentsToStatement(
+  statementId: string,
+  userId: string | null,
+  parsedTransactions?: ParsedTransaction[],
+) {
+  if (!userId) return;
+
+  const statement = await prisma.statement.findUniqueOrThrow({
+    where: { id: statementId },
+    select: {
+      card: { select: { lastFour: true } },
+      periodStart: true,
+      periodEnd: true,
+    },
+  });
+
+  // 1. Link orphan DEBIT transactions matching this card within the period
+  await prisma.transaction.updateMany({
+    where: {
+      userId,
+      statementId: null,
+      cardLastFour: statement.card.lastFour,
+      date: { gte: statement.periodStart, lte: statement.periodEnd },
+      transactionType: "DEBIT",
+      deletedAt: null,
+    },
+    data: { statementId },
+  });
+
+  // 2. Deduplicate payment transactions found in the just-imported data
+  if (!parsedTransactions?.length) return;
+
+  const paymentKeywords = ["PAGO", "CANCELACION", "CANCELACIÓN", "DEUDA", "RESUMEN ANTERIOR"];
+
+  for (const tx of parsedTransactions) {
+    const isPayment = paymentKeywords.some((kw) =>
+      tx.merchant_name.toUpperCase().includes(kw),
+    );
+    if (!isPayment) continue;
+
+    const amount = tx.amount_ars;
+    const txDate = parseDateOnly(tx.date);
+    const threeDaysBefore = new Date(txDate.getTime() - 3 * 86400000);
+    const threeDaysAfter = new Date(txDate.getTime() + 3 * 86400000);
+
+    const importedTx = await prisma.transaction.findFirst({
+      where: {
+        statementId,
+        merchantName: tx.merchant_name,
+        amountArs: money(amount),
+        deletedAt: null,
+      },
+    });
+    if (!importedTx) continue;
+
+    const existingTx = await prisma.transaction.findFirst({
+      where: {
+        id: { not: importedTx.id },
+        userId,
+        transactionType: "DEBIT",
+        cardLastFour: statement.card.lastFour,
+        amountArs: money(amount),
+        date: { gte: threeDaysBefore, lte: threeDaysAfter },
+        deletedAt: null,
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    if (!existingTx) continue;
+
+    await prisma.$transaction([
+      prisma.transaction.delete({ where: { id: importedTx.id } }),
+      prisma.transaction.update({
+        where: { id: existingTx.id },
+        data: { statementId },
+      }),
+    ]);
+  }
+}
+
 export async function createTransactionsFromStoredAnalysis(
   statementId: string,
   userId: string | null,
@@ -141,7 +220,7 @@ export async function createTransactionsFromStoredAnalysis(
   const categories = await prisma.category.findMany();
   const categoryMap = new Map(categories.map((c) => [c.name, c.id]));
 
-  return prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx) => {
     for (const transaction of transactions) {
       const categoryName = categorizeTransaction(transaction.merchant_name);
       const categoryId = categoryMap.get(categoryName) ?? categoryMap.get("Otros");
@@ -166,6 +245,8 @@ export async function createTransactionsFromStoredAnalysis(
       });
     }
   });
+
+  await linkPaymentsToStatement(statementId, userId, transactions);
 }
 
 export async function deleteStatementAndRequeue(statementId: string) {

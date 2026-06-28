@@ -6,7 +6,7 @@ import { getSession } from "@/lib/auth";
 import { createAIImportJob } from "@/lib/import-jobs";
 import { enforceRateLimit, getClientIp } from "@/lib/rate-limit";
 import { createStoredFilename, saveStatementPdf } from "@/lib/statement-pdf";
-import { persistParsedStatement } from "@/lib/statement-import";
+import { persistParsedStatement, linkPaymentsToStatement } from "@/lib/statement-import";
 import { extractPdfText } from "@/lib/pdf-parser";
 import { findMatchingAiParsers } from "@/lib/ai/parser-generator";
 
@@ -137,6 +137,10 @@ export async function POST(req: NextRequest) {
   });
 
   saveStatementPdf(statement.id, buffer, storedFilename);
+
+  if (session?.userId) {
+    await linkPaymentsToStatement(statement.id, session.userId, parsed.transactions);
+  }
 
   return NextResponse.json(
     {

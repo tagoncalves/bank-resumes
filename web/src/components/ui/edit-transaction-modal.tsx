@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { dateInputValue } from "@/lib/dates";
 import { formatMoneyInput, parseMoneyInput, parseMoneyNumber } from "@/lib/money-input";
 
@@ -92,10 +93,10 @@ export function EditTransactionModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg rounded-xl border border-zinc-200 bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4">
-          <p className="text-sm font-semibold text-zinc-800">Editar movimiento</p>
-          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600">
+      <div className="ds-panel w-full max-w-lg">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <p className="text-sm font-semibold text-foreground">Editar movimiento</p>
+          <button onClick={onClose} className="text-muted hover:text-foreground">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -108,8 +109,8 @@ export function EditTransactionModal({
               onClick={() => set("transactionType", "DEBIT")}
               className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                 form.transactionType === "DEBIT"
-                  ? "bg-red-100 text-red-700"
-                  : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+                  ? "bg-expense/15 text-expense"
+                  : "bg-surface-alt text-muted hover:bg-surface-muted"
               }`}
             >
               Gasto
@@ -119,8 +120,8 @@ export function EditTransactionModal({
               onClick={() => set("transactionType", "CREDIT")}
               className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                 form.transactionType === "CREDIT"
-                  ? "bg-emerald-100 text-emerald-700"
-                  : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+                  ? "bg-income/15 text-income"
+                  : "bg-surface-alt text-muted hover:bg-surface-muted"
               }`}
             >
               Ingreso
@@ -129,21 +130,21 @@ export function EditTransactionModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-xs text-zinc-500">Fecha</label>
+              <label className="mb-1 block text-xs text-muted">Fecha</label>
               <input
                 type="date"
                 value={form.date}
                 onChange={(e) => set("date", e.target.value)}
                 required
-                className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                className="ds-input"
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-zinc-500">Categoría</label>
+              <label className="mb-1 block text-xs text-muted">Categoría</label>
               <select
                 value={form.categoryId}
                 onChange={(e) => set("categoryId", e.target.value)}
-                className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                className="ds-input"
               >
                 <option value="">Sin categoría</option>
                 {categories.map((c) => (
@@ -152,71 +153,71 @@ export function EditTransactionModal({
               </select>
             </div>
             <div className="col-span-2">
-              <label className="mb-1 block text-xs text-zinc-500">Descripción</label>
+              <label className="mb-1 block text-xs text-muted">Descripción</label>
               <input
                 type="text"
                 value={form.merchantName}
                 onChange={(e) => set("merchantName", e.target.value)}
                 required
-                className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                className="ds-input"
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-zinc-500">Importe ARS</label>
+              <label className="mb-1 block text-xs text-muted">Importe ARS</label>
               <input
                 type="text"
                 inputMode="decimal"
                 value={formatMoneyInput(form.amountArs)}
                 onChange={(e) => set("amountArs", parseMoneyInput(e.target.value))}
                 required
-                className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                className="ds-input font-mono"
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-zinc-500">Importe USD</label>
+              <label className="mb-1 block text-xs text-muted">Importe USD</label>
               <input
                 type="text"
                 inputMode="decimal"
                 value={formatMoneyInput(form.amountUsd)}
                 onChange={(e) => set("amountUsd", parseMoneyInput(e.target.value))}
                 placeholder="0"
-                className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                className="ds-input font-mono"
               />
             </div>
           </div>
 
           {form.transactionType === "DEBIT" && (
             <div>
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-600">
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-muted">
                 <input
                   type="checkbox"
                   checked={form.isInstallment}
                   onChange={(e) => set("isInstallment", e.target.checked)}
-                  className="h-3.5 w-3.5 rounded border-zinc-300 accent-indigo-600"
+                  className="h-3.5 w-3.5 rounded border-border accent-primary"
                 />
                 Es en cuotas
               </label>
               {form.isInstallment && (
                 <div className="mt-2 flex items-center gap-2">
                   <div>
-                    <label className="mb-1 block text-xs text-zinc-500">Cuota actual</label>
+                    <label className="mb-1 block text-xs text-muted">Cuota actual</label>
                     <input
                       type="number"
                       min="1"
                       value={form.installmentCurrent}
                       onChange={(e) => set("installmentCurrent", e.target.value)}
-                      className="w-20 rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                      className="w-20 ds-input font-mono"
                     />
                   </div>
-                  <span className="mt-5 text-zinc-400">/</span>
+                  <span className="mt-5 text-muted">/</span>
                   <div>
-                    <label className="mb-1 block text-xs text-zinc-500">Total cuotas</label>
+                    <label className="mb-1 block text-xs text-muted">Total cuotas</label>
                     <input
                       type="number"
                       min="2"
                       value={form.installmentTotal}
                       onChange={(e) => set("installmentTotal", e.target.value)}
-                      className="w-20 rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                      className="w-20 ds-input font-mono"
                     />
                   </div>
                 </div>
@@ -224,23 +225,24 @@ export function EditTransactionModal({
             </div>
           )}
 
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && <p className="text-xs text-expense">{error}</p>}
 
           <div className="flex justify-end gap-2 pt-1">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               onClick={onClose}
-              className="rounded px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100"
             >
               Cancelar
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
+              size="sm"
               disabled={pending}
-              className="rounded bg-indigo-600 px-4 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
             >
               {pending ? "Guardando..." : "Guardar"}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

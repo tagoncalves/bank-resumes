@@ -63,7 +63,7 @@ function ToastCard({ toast }: { toast: ToastItem }) {
   const Icon = config.icon;
 
   return (
-    <div className={`pointer-events-auto rounded-xl border px-4 py-3 shadow-lg ${config.classes}`}>
+    <div className={`pointer-events-auto rounded-[var(--radius-md)] border px-4 py-3 shadow-card ${config.classes}`}>
       <div className="flex items-start gap-3">
         <Icon className="mt-0.5 h-4 w-4 shrink-0" />
         <div>

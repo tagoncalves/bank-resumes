@@ -87,6 +87,10 @@ export async function GET(req: NextRequest) {
       where.transactionType = { in: types };
     }
   }
+  const statementId = searchParams.get("statementId");
+  if (statementId) {
+    where.statementId = statementId;
+  }
   if (currency === "USD") {
     where.amountUsd = { not: null };
   } else if (currency === "ARS") {

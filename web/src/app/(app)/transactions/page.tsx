@@ -58,6 +58,7 @@ function TransactionsInner() {
   const currency = searchParams.get("currency") ?? "";
   const amountMin = searchParams.get("amountMin") ?? "";
   const amountMax = searchParams.get("amountMax") ?? "";
+  const statementId = searchParams.get("statementId") ?? "";
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -112,6 +113,7 @@ function TransactionsInner() {
     if (currency) params.set("currency", currency);
     if (appliedAmountMin) params.set("amountMin", appliedAmountMin);
     if (appliedAmountMax) params.set("amountMax", appliedAmountMax);
+    if (statementId) params.set("statementId", statementId);
     const res = await fetch(`/api/transactions?${params}`);
     const json = await res.json();
     setTransactions(json.data ?? []);
@@ -124,7 +126,7 @@ function TransactionsInner() {
     setNetTotalUsd(json.netTotalUsd ?? 0);
     setLoading(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, appliedSearch, sortBy, sortOrder, currentMonth, currentMonths, categoryIdsStr, originStr, typeStr, currency, appliedAmountMin, appliedAmountMax]);
+  }, [page, appliedSearch, sortBy, sortOrder, currentMonth, currentMonths, categoryIdsStr, originStr, typeStr, currency, appliedAmountMin, appliedAmountMax, statementId]);
 
   useEffect(() => {
     fetchTransactions();
@@ -136,7 +138,7 @@ function TransactionsInner() {
 
   useEffect(() => {
     setPage(1);
-  }, [appliedSearch, sortBy, sortOrder, currentMonth, currentMonths, categoryIdsStr, originStr, typeStr, currency, appliedAmountMin, appliedAmountMax]);
+  }, [appliedSearch, sortBy, sortOrder, currentMonth, currentMonths, categoryIdsStr, originStr, typeStr, currency, appliedAmountMin, appliedAmountMax, statementId]);
 
   function updateFilterParam(key: string, value: string) {
     const sp = new URLSearchParams(window.location.search || searchParams.toString());
@@ -190,7 +192,7 @@ function TransactionsInner() {
         <div className="grid w-full grid-cols-3 gap-2 text-right sm:w-auto sm:shrink-0">
           <div className="rounded-lg border border-zinc-100 bg-white px-3 py-2 shadow-sm">
             <p className="text-[10px] uppercase tracking-wide text-zinc-400">Gastos</p>
-            <p className="font-mono text-sm font-semibold tabular-nums text-zinc-900">{formatShownMoney(shownDebitTotal)}</p>
+            <p className="font-mono text-sm font-semibold tabular-nums text-red-600">{formatShownMoney(shownDebitTotal)}</p>
           </div>
           <div className="rounded-lg border border-zinc-100 bg-white px-3 py-2 shadow-sm">
             <p className="text-[10px] uppercase tracking-wide text-zinc-400">Ingresos</p>
@@ -359,7 +361,7 @@ function TransactionsInner() {
                           categories={categories}
                         />
                       </td>
-                      <td className={`px-5 py-2.5 text-right font-mono font-medium tabular-nums ${isCredit ? "text-emerald-600" : "text-zinc-800"}`}>
+                      <td className={`px-5 py-2.5 text-right font-mono font-medium tabular-nums ${isCredit ? "text-emerald-600" : "text-red-600"}`}>
                         <div className="flex items-center justify-end gap-1.5">
                           {t.amountUsd && (
                             <span className="rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-600">USD</span>

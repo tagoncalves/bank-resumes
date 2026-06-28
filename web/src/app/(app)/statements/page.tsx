@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { getStatements } from "@/lib/data";
+import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { formatARS, formatDate } from "@/lib/formatters";
+import { formatARS, formatDate, formatMonthYear } from "@/lib/formatters";
+import { dateInputValue } from "@/lib/dates";
 import { Card } from "@/components/ui/card";
 import { FileText, ArrowRight } from "lucide-react";
 import OpenUploadButton from "@/components/upload/OpenUploadButton";
+import { StatementPayButton } from "@/components/statements/statement-pay-button";
+import { toMoneyNumber } from "@/lib/money";
 
 const BANK_COLORS: Record<string, string> = {
   BBVA: "bg-blue-100 text-blue-700",
@@ -14,6 +18,21 @@ const BANK_COLORS: Record<string, string> = {
 export default async function StatementsPage() {
   const session = await getSession();
   const { statements, total } = await getStatements(1, 50, undefined, session?.userId);
+
+  const statementIds = statements.map((s) => s.id);
+  const paymentGroups = statementIds.length > 0
+    ? await prisma.transaction.groupBy({
+        by: ["statementId"],
+        where: { statementId: { in: statementIds }, transactionType: "DEBIT", deletedAt: null },
+        _sum: { amountArs: true, amountUsd: true },
+      })
+    : [];
+  const paymentMap = new Map(
+    paymentGroups.map((g) => [
+      g.statementId,
+      { amountArs: toMoneyNumber(g._sum.amountArs), amountUsd: toMoneyNumber(g._sum.amountUsd) },
+    ]),
+  );
 
   return (
     <div className="space-y-4">
@@ -66,12 +85,57 @@ export default async function StatementsPage() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-mono text-base font-semibold text-zinc-900 tabular-nums">
+                  <p className="font-mono text-base font-semibold text-red-600 tabular-nums">
                     {formatARS(s.balanceSummary?.currentBalance ?? 0)}
                   </p>
-                  <p className="text-xs text-zinc-400">
-                    Pago mínimo: {formatARS(s.balanceSummary?.minimumPayment ?? 0)}
-                  </p>
+                  <StatementPayButton
+                    statementId={s.id}
+                    currencies={(() => {
+                      const paid = paymentMap.get(s.id) ?? { amountArs: 0, amountUsd: 0 };
+                      const bs = s.balanceSummary;
+                      const list: Array<{ code: string; total: number; minimum: number; paid: number }> = [];
+                      if (bs) {
+                        list.push({ code: "ARS", total: bs.currentBalance, minimum: bs.minimumPayment, paid: paid.amountArs });
+                        if (bs.currentBalanceUsd) {
+                          list.push({ code: "USD", total: bs.currentBalanceUsd, minimum: 0, paid: paid.amountUsd });
+                        }
+                      }
+                      return list;
+                    })()}
+                    dueDate={dateInputValue(s.dueDate)}
+                    bankName={s.bankName}
+                    cardLastFour={s.card.lastFour}
+                    periodLabel={formatMonthYear(s.periodEnd)}
+                    trigger={
+                      <span className="group cursor-pointer">
+                        {(() => {
+                          const paid = paymentMap.get(s.id);
+                          if (paid && paid.amountArs > 0) {
+                            return (
+                              <>
+                                <span className="text-xs text-emerald-600 font-medium group-hover:hidden">
+                                  Pagado: {formatARS(paid.amountArs)}
+                                </span>
+                                <span className="hidden group-hover:inline text-xs text-emerald-600 font-medium underline decoration-dotted underline-offset-2">
+                                  Registrar pago
+                                </span>
+                              </>
+                            );
+                          }
+                          return (
+                            <>
+                              <span className="text-xs text-zinc-400 group-hover:hidden">
+                                Pago mínimo: {formatARS(s.balanceSummary?.minimumPayment ?? 0)}
+                              </span>
+                              <span className="hidden group-hover:inline text-xs text-emerald-600 font-medium underline decoration-dotted underline-offset-2">
+                                Registrar pago
+                              </span>
+                            </>
+                          );
+                        })()}
+                      </span>
+                    }
+                  />
                 </div>
                 <ArrowRight className="h-4 w-4 text-zinc-300 flex-shrink-0" />
               </Card>

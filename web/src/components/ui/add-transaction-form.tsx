@@ -3,6 +3,7 @@
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Plus, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast-provider";
 import { dateInputValue, todayInputValue } from "@/lib/dates";
 import { formatARS, formatUSD } from "@/lib/formatters";
@@ -267,29 +268,26 @@ export function AddTransactionForm({
 
   if (!open) {
     return (
-      <button
-        onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 rounded-md border border-indigo-100 px-3 py-1.5 text-sm text-indigo-600 hover:bg-indigo-50"
-      >
+      <Button onClick={() => setOpen(true)} variant="outline" size="sm">
         <Plus className="h-4 w-4" /> Agregar movimiento
-      </button>
+      </Button>
     );
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-3xl rounded-xl border border-zinc-200 bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4">
-          <p className="text-sm font-semibold text-zinc-800">Nuevo movimiento</p>
+      <div className="ds-panel w-full max-w-3xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <p className="text-sm font-semibold text-foreground">Nuevo movimiento</p>
           <div className="flex items-center gap-2">
             <a
               href="/api/transactions/template"
-              className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-700 hover:bg-zinc-50"
+              className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-border bg-surface px-3 py-1.5 text-xs text-muted hover:bg-surface-alt"
             >
               <Download className="h-3.5 w-3.5" />
               Descargar plantilla XLSX
             </a>
-            <button type="button" onClick={handleClose} className="text-zinc-400 hover:text-zinc-600">
+            <button type="button" onClick={handleClose} className="text-muted hover:text-foreground">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -304,8 +302,8 @@ export function AddTransactionForm({
             onClick={() => { set("transactionType", "DEBIT"); set("isInstallment", false); }}
             className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
               form.transactionType === "DEBIT"
-                ? "bg-red-100 text-red-700"
-                : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+                ? "bg-expense/15 text-expense"
+                : "bg-surface-alt text-muted hover:bg-surface-muted"
             }`}
           >
             Gasto
@@ -315,8 +313,8 @@ export function AddTransactionForm({
             onClick={() => { set("transactionType", "CREDIT"); set("isInstallment", false); }}
             className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
               form.transactionType === "CREDIT"
-                ? "bg-emerald-100 text-emerald-700"
-                : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+                ? "bg-income/15 text-income"
+                : "bg-surface-alt text-muted hover:bg-surface-muted"
             }`}
           >
             Ingreso
@@ -325,17 +323,17 @@ export function AddTransactionForm({
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div>
-            <label className="mb-1 block text-xs text-zinc-500">Fecha</label>
+            <label className="mb-1 block text-xs text-muted">Fecha</label>
             <input
               type="date"
               value={form.date}
               onChange={(e) => setForm((current) => ({ ...current, date: e.target.value, recurringBackfillTo: e.target.value }))}
               required
-              className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
+              className="ds-input"
             />
           </div>
           <div className="sm:col-span-2">
-            <label className="mb-1 block text-xs text-zinc-500">
+            <label className="mb-1 block text-xs text-muted">
               {form.transactionType === "CREDIT" ? "Descripción" : "Comercio / descripción"}
             </label>
             <input
@@ -344,15 +342,15 @@ export function AddTransactionForm({
               onChange={(e) => set("merchantName", e.target.value)}
               placeholder={form.transactionType === "CREDIT" ? "Sueldo, aguinaldo, cobro..." : "Nombre del comercio"}
               required
-              className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
+              className="ds-input"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-zinc-500">Categoría</label>
+            <label className="mb-1 block text-xs text-muted">Categoría</label>
             <select
               value={form.categoryId}
               onChange={(e) => set("categoryId", e.target.value)}
-              className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
+              className="ds-input"
             >
               <option value="">Sin categoría</option>
               {categories.map((c) => (
@@ -361,7 +359,7 @@ export function AddTransactionForm({
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs text-zinc-500">Importe ARS</label>
+            <label className="mb-1 block text-xs text-muted">Importe ARS</label>
             <input
               type="text"
               inputMode="decimal"
@@ -369,18 +367,18 @@ export function AddTransactionForm({
               onChange={(e) => set("amountArs", parseMoneyInput(e.target.value))}
               placeholder="0"
               required
-              className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-indigo-300"
+              className="ds-input font-mono"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-zinc-500">Importe USD</label>
+            <label className="mb-1 block text-xs text-muted">Importe USD</label>
             <input
               type="text"
               inputMode="decimal"
               value={formatMoneyInput(form.amountUsd)}
               onChange={(e) => set("amountUsd", parseMoneyInput(e.target.value))}
               placeholder="0"
-              className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-indigo-300"
+              className="ds-input font-mono"
             />
           </div>
         </div>
@@ -388,51 +386,51 @@ export function AddTransactionForm({
         {/* Installments (gastos only) */}
         {form.transactionType === "DEBIT" && (
           <div className="mt-3">
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-600">
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-muted">
               <input
                 type="checkbox"
                 checked={form.isInstallment}
                 onChange={(e) => set("isInstallment", e.target.checked)}
-                className="h-3.5 w-3.5 rounded border-zinc-300 accent-indigo-600"
+                className="h-3.5 w-3.5 rounded border-border accent-primary"
               />
               Es en cuotas
             </label>
             {form.isInstallment && (
               <div className="mt-2 flex items-center gap-2">
                 <div>
-                  <label className="mb-1 block text-xs text-zinc-500">Cuota actual</label>
+                  <label className="mb-1 block text-xs text-muted">Cuota actual</label>
                   <input
                     type="number"
                     min="1"
                     value={form.installmentCurrent}
                     onChange={(e) => set("installmentCurrent", e.target.value)}
-                    className="w-20 rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                    className="w-20 ds-input font-mono"
                   />
                 </div>
-                <span className="mt-5 text-zinc-400">/</span>
+                <span className="mt-5 text-muted">/</span>
                 <div>
-                  <label className="mb-1 block text-xs text-zinc-500">Total cuotas</label>
+                  <label className="mb-1 block text-xs text-muted">Total cuotas</label>
                   <input
                     type="number"
                     min="2"
                     value={form.installmentTotal}
                     onChange={(e) => set("installmentTotal", e.target.value)}
-                    className="w-20 rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                    className="w-20 ds-input font-mono"
                   />
                 </div>
-                <p className="mt-5 text-xs text-zinc-400">Importe = valor de 1 cuota</p>
+                <p className="mt-5 text-xs text-muted">Importe = valor de 1 cuota</p>
               </div>
             )}
           </div>
         )}
 
-        <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3">
-          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-zinc-700">
+        <div className="mt-4 rounded-[var(--radius-md)] border border-border bg-surface-alt px-3 py-3">
+          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground">
             <input
               type="checkbox"
               checked={form.createRecurring}
               onChange={(e) => set("createRecurring", e.target.checked)}
-              className="h-3.5 w-3.5 rounded border-zinc-300 accent-indigo-600"
+              className="h-3.5 w-3.5 rounded border-border accent-primary"
             />
             Convertir en recurrente
           </label>
@@ -440,7 +438,7 @@ export function AddTransactionForm({
             <div className="mt-3 space-y-3">
               <div className="grid gap-3 sm:grid-cols-4">
                 <div>
-                  <label className="mb-1 block text-xs text-zinc-500">Periodicidad</label>
+                  <label className="mb-1 block text-xs text-muted">Periodicidad</label>
                   <select
                     value={`${form.recurringFrequency}:${form.recurringInterval}`}
                     onChange={(e) => {
@@ -448,7 +446,7 @@ export function AddTransactionForm({
                       set("recurringFrequency", frequency);
                       set("recurringInterval", interval);
                     }}
-                    className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                    className="ds-input"
                   >
                     {RECURRENCE_OPTIONS.map((option) => (
                       <option key={`${option.frequency}:${option.interval}`} value={`${option.frequency}:${option.interval}`}>
@@ -458,38 +456,38 @@ export function AddTransactionForm({
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs text-zinc-500">Próxima fecha</label>
+                  <label className="mb-1 block text-xs text-muted">Próxima fecha</label>
                   <input
                     type="date"
                     value={form.recurringNextRunAt}
                     onChange={(e) => set("recurringNextRunAt", e.target.value)}
-                    className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                    className="ds-input"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs text-zinc-500">Recordar días antes</label>
+                  <label className="mb-1 block text-xs text-muted">Recordar días antes</label>
                   <input
                     type="number"
                     min="0"
                     value={form.recurringReminderDaysBefore}
                     onChange={(e) => set("recurringReminderDaysBefore", e.target.value)}
-                    className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                    className="ds-input"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs text-zinc-500">Modo de carga</label>
-                  <div className="flex rounded border border-zinc-200 bg-white p-1">
+                  <label className="mb-1 block text-xs text-muted">Modo de carga</label>
+                  <div className="flex rounded-[var(--radius-md)] border border-border bg-surface p-1">
                     <button
                       type="button"
                       onClick={() => set("recurringRequiresConfirmation", false)}
-                      className={`flex-1 rounded px-2 py-1 text-xs ${!form.recurringRequiresConfirmation ? "bg-emerald-100 text-emerald-700" : "text-zinc-500"}`}
+                      className={`flex-1 rounded-[var(--radius-md)] px-2 py-1 text-xs ${!form.recurringRequiresConfirmation ? "bg-income/15 text-income" : "text-muted"}`}
                     >
                       Auto
                     </button>
                     <button
                       type="button"
                       onClick={() => set("recurringRequiresConfirmation", true)}
-                      className={`flex-1 rounded px-2 py-1 text-xs ${form.recurringRequiresConfirmation ? "bg-indigo-100 text-indigo-700" : "text-zinc-500"}`}
+                      className={`flex-1 rounded-[var(--radius-md)] px-2 py-1 text-xs ${form.recurringRequiresConfirmation ? "bg-primary/15 text-primary" : "text-muted"}`}
                     >
                       Confirmar
                     </button>
@@ -497,13 +495,13 @@ export function AddTransactionForm({
                 </div>
               </div>
 
-              <div className="rounded-md border border-zinc-200 bg-white p-3">
-                <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-zinc-700">
+              <div className="rounded-[var(--radius-md)] border border-border bg-surface p-3">
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground">
                   <input
                     type="checkbox"
                     checked={form.recurringBackfill}
                     onChange={(e) => set("recurringBackfill", e.target.checked)}
-                    className="h-3.5 w-3.5 rounded border-zinc-300 accent-indigo-600"
+                    className="h-3.5 w-3.5 rounded border-border accent-primary"
                   />
                   Cargar ocurrencias anteriores
                 </label>
@@ -511,29 +509,29 @@ export function AddTransactionForm({
                   <div className="mt-3 space-y-3">
                     <div className="grid gap-3 sm:grid-cols-3">
                       <div>
-                        <label className="mb-1 block text-xs text-zinc-500">Desde</label>
+                        <label className="mb-1 block text-xs text-muted">Desde</label>
                         <input
                           type="date"
                           value={form.recurringBackfillFrom}
                           onChange={(e) => set("recurringBackfillFrom", e.target.value)}
-                          className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                          className="ds-input"
                         />
                       </div>
                       <div>
-                        <label className="mb-1 block text-xs text-zinc-500">Hasta</label>
+                        <label className="mb-1 block text-xs text-muted">Hasta</label>
                         <input
                           type="date"
                           value={form.recurringBackfillTo}
                           onChange={(e) => set("recurringBackfillTo", e.target.value)}
-                          className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                          className="ds-input"
                         />
                       </div>
                       <div>
-                        <label className="mb-1 block text-xs text-zinc-500">Acción histórica</label>
+                        <label className="mb-1 block text-xs text-muted">Acción histórica</label>
                         <select
                           value={form.recurringBackfillMode}
                           onChange={(e) => set("recurringBackfillMode", e.target.value as "CREATE_TRANSACTIONS" | "PENDING_CONFIRMATION")}
-                          className="w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                          className="ds-input"
                         >
                           <option value="PENDING_CONFIRMATION">Dejar pendientes</option>
                           <option value="CREATE_TRANSACTIONS">Crear movimientos ahora</option>
@@ -541,8 +539,8 @@ export function AddTransactionForm({
                       </div>
                     </div>
                     {preview && (
-                      <div className="rounded-md bg-zinc-50 p-2 text-xs text-zinc-600">
-                        <p className="font-medium text-zinc-700">
+                      <div className="rounded-[var(--radius-md)] bg-surface-alt p-2 text-xs text-muted">
+                        <p className="font-medium text-foreground">
                           {preview.count} ocurrencia{preview.count === 1 ? "" : "s"} · total estimado {formatARS(preview.totalArs)}
                           {preview.totalUsd != null ? ` / ${formatUSD(preview.totalUsd)}` : ""}
                           {preview.capped ? " · limitado a 120" : ""}
@@ -556,31 +554,33 @@ export function AddTransactionForm({
           )}
         </div>
 
-        {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+        {error && <p className="mt-2 text-xs text-expense">{error}</p>}
 
         <div className="mt-4 flex justify-end gap-2">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={handleClose}
-            className="rounded px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100"
           >
             Cancelar
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={() => void submitForm("continue")}
             disabled={saving || pending}
-            className="rounded border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
           >
             {saving || pending ? "Guardando..." : "Guardar y cargar otro"}
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
+            size="sm"
             disabled={saving || pending}
-            className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {saving || pending ? "Guardando..." : "Guardar"}
-          </button>
+          </Button>
         </div>
         </form>
       </div>

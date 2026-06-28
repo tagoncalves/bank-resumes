@@ -5,8 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { formatARS, formatUSD, formatDate, formatMonthYear } from "@/lib/formatters";
 import { dateInputValue } from "@/lib/dates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, FileText } from "lucide-react";
+import { ArrowLeft, FileText, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toMoneyNumber } from "@/lib/money";
 import { DeleteStatementButton } from "@/components/ui/delete-statement-button";
 import { CategoryPicker } from "@/components/ui/category-picker";
 import { RegisterPaymentDialog } from "@/components/statements/register-payment-dialog";
@@ -21,6 +22,25 @@ export default async function StatementDetailPage({ params }: { params: Promise<
   if (!data) notFound();
 
   const { card, balanceSummary: bs, transactions } = data;
+
+  const paymentsSum = bs
+    ? await prisma.transaction.aggregate({
+        where: { statementId: id, transactionType: "DEBIT", deletedAt: null },
+        _sum: { amountArs: true, amountUsd: true },
+      })
+    : null;
+  const totalPayments = paymentsSum ? toMoneyNumber(paymentsSum._sum.amountArs) : 0;
+  const totalPaymentsUsd = paymentsSum ? toMoneyNumber(paymentsSum._sum.amountUsd) : 0;
+  const isFullyPaid = !!bs
+    && totalPayments >= bs.currentBalance
+    && (!bs.currentBalanceUsd || totalPaymentsUsd >= bs.currentBalanceUsd);
+
+  const paymentCurrencies = bs
+    ? [
+        { code: "ARS" as const, total: bs.currentBalance, minimum: bs.minimumPayment, paid: totalPayments },
+        ...(bs.currentBalanceUsd ? [{ code: "USD" as const, total: bs.currentBalanceUsd, minimum: 0, paid: totalPaymentsUsd }] : []),
+      ]
+    : [];
 
   // Category breakdown
   const catMap = new Map<string, { name: string; color: string | null; total: number; count: number }>();
@@ -53,16 +73,23 @@ export default async function StatementDetailPage({ params }: { params: Promise<
           >
             <FileText className="h-4 w-4" /> Ver PDF
           </a>
-          {bs && (
+          {bs && !isFullyPaid && (
             <RegisterPaymentDialog
               statementId={data.id}
-              currentBalance={bs.currentBalance}
-              minimumPayment={bs.minimumPayment}
+              currencies={paymentCurrencies}
               dueDate={dateInputValue(data.dueDate)}
               bankName={data.bankName}
               cardLastFour={card.lastFour}
               periodLabel={formatMonthYear(data.periodEnd)}
             />
+          )}
+          {bs && isFullyPaid && (
+            <Link
+              href={`/transactions?statementId=${id}&type=CREDIT`}
+              className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-emerald-600 hover:bg-emerald-50"
+            >
+              <CreditCard className="h-4 w-4" /> Ver pagos
+            </Link>
           )}
           <DeleteStatementButton id={id} />
         </div>
@@ -84,11 +111,11 @@ export default async function StatementDetailPage({ params }: { params: Promise<
               </div>
             </div>
             <div className="text-right">
-              <p className="text-2xl font-semibold font-mono text-zinc-900 tabular-nums">
+              <p className="text-2xl font-semibold font-mono text-red-600 tabular-nums">
                 {formatARS(bs?.currentBalance ?? 0)}
               </p>
               {bs?.currentBalanceUsd ? (
-                <p className="text-sm font-mono text-zinc-500">{formatUSD(bs.currentBalanceUsd)}</p>
+                <p className="text-sm font-mono text-red-600/70">{formatUSD(bs.currentBalanceUsd)}</p>
               ) : null}
               <p className="mt-1 text-xs text-zinc-400">
                 Pago mínimo: {formatARS(bs?.minimumPayment ?? 0)}
@@ -181,7 +208,7 @@ export default async function StatementDetailPage({ params }: { params: Promise<
                       />
                     </div>
                     <span className="text-xs text-zinc-400 w-6 text-right shrink-0">{cat.count}</span>
-                    <span className="text-xs font-mono font-medium text-zinc-800 tabular-nums w-28 text-right shrink-0">
+                    <span className="text-xs font-mono font-medium text-red-600 tabular-nums w-28 text-right shrink-0">
                       {formatARS(cat.total)}
                     </span>
                   </div>
@@ -237,7 +264,7 @@ export default async function StatementDetailPage({ params }: { params: Promise<
                         categories={categories}
                       />
                     </td>
-                    <td className="px-5 py-2.5 text-right font-mono font-medium tabular-nums text-zinc-800">
+                    <td className="px-5 py-2.5 text-right font-mono font-medium tabular-nums text-red-600">
                       <div className="flex items-center justify-end gap-1.5">
                         {t.amountUsd ? (
                           <span className="rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-600">USD</span>
@@ -269,7 +296,7 @@ function SummaryRow({
   return (
     <div className="flex justify-between gap-2">
       <span className="text-zinc-500">{label}</span>
-      <span className={cn("font-mono tabular-nums text-zinc-800", valueClass)}>{value}</span>
+      <span className={cn("font-mono tabular-nums text-red-600", valueClass)}>{value}</span>
     </div>
   );
 }

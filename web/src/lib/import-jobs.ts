@@ -3,7 +3,7 @@ import { analyzeStatementWithDeepSeek } from "@/lib/ai/deepseek";
 import { analyzeWithRetry } from "@/lib/ai/retry";
 import { extractPdfText } from "@/lib/pdf-parser";
 import { createStoredFilename, readImportJobPdf, readStatementPdf, saveImportJobPdf, saveStatementPdf } from "@/lib/statement-pdf";
-import { persistParsedStatement, createTransactionsFromStoredAnalysis } from "@/lib/statement-import";
+import { persistParsedStatement, createTransactionsFromStoredAnalysis, linkPaymentsToStatement } from "@/lib/statement-import";
 import { createAiParserFromAnalysis } from "@/lib/ai/parser-generator";
 
 type StartAIImportJobInput = {
@@ -182,6 +182,10 @@ async function processNewStatementJob(jobId: string, input: StartAIImportJobInpu
   });
 
   saveStatementPdf(statement.id, input.pdfBuffer, statement.storedFilename);
+
+  if (input.userId) {
+    await linkPaymentsToStatement(statement.id, input.userId, aiParsed.transactions);
+  }
 
   // Generate AI parser
   const pdfText = await extractPdfText(input.pdfBuffer);

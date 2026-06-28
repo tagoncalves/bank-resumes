@@ -35,14 +35,14 @@ export function CategoryPicker({
     <div className="relative inline-flex items-center">
       <span
         className="absolute left-2 h-1.5 w-1.5 rounded-full pointer-events-none"
-        style={{ background: current?.color ?? "#94A3B8" }}
+        style={{ background: current?.color ?? "var(--color-muted)" }}
       />
       <select
         value={value}
         onChange={handleChange}
         disabled={pending}
         className="cursor-pointer appearance-none rounded-full border-0 bg-transparent py-0.5 pl-5 pr-2 text-[11px] transition-colors hover:bg-surface-alt focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
-        style={{ color: current?.color ?? "#94A3B8" }}
+        style={{ color: current?.color ?? "var(--color-muted)" }}
       >
         <option value="">Sin categoría</option>
         {categories.map((cat) => (

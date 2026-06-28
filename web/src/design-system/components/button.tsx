@@ -17,7 +17,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       ai: "border border-transparent bg-ai text-white shadow-sm hover:brightness-95",
     };
     const sizes = {
-      sm: "h-8 rounded-[var(--radius-sm)] px-3 text-xs",
+      sm: "h-8 rounded-[var(--radius-md)] px-3 text-xs",
       md: "h-9 rounded-[var(--radius-md)] px-4 text-sm",
       lg: "h-11 rounded-[var(--radius-md)] px-6 text-sm",
       icon: "h-9 w-9 rounded-[var(--radius-md)]",

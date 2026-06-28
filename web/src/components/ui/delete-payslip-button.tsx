@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export function DeletePayslipButton({
   id,
@@ -23,13 +24,14 @@ export function DeletePayslipButton({
   }
 
   return (
-    <button
+    <Button
+      variant="destructive"
+      size="sm"
       onClick={handleDelete}
       disabled={loading}
-      className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
     >
       <Trash2 className="h-4 w-4" />
       {loading ? "Eliminando..." : "Eliminar"}
-    </button>
+    </Button>
   );
 }

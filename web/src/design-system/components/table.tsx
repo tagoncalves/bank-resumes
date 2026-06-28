@@ -2,7 +2,11 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export function Table({ className, ...props }: React.TableHTMLAttributes<HTMLTableElement>) {
-  return <table className={cn("w-full border-collapse text-sm", className)} {...props} />;
+  return (
+    <div className={cn("w-full overflow-hidden rounded-[var(--radius-md)] border border-border bg-surface", className)}>
+      <table className="w-full border-collapse text-sm" {...props} />
+    </div>
+  );
 }
 
 export function TableHead({ className, ...props }: React.HTMLAttributes<HTMLTableSectionElement>) {

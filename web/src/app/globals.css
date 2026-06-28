@@ -365,10 +365,10 @@ body {
   }
 
   .ds-panel {
-    @apply rounded-[var(--radius-lg)] border border-border bg-surface shadow-card;
+    @apply rounded-[var(--radius-md)] border border-border bg-surface shadow-card;
   }
 
   .ds-icon-button {
-    @apply inline-flex items-center justify-center rounded-[var(--radius-sm)] border border-transparent p-1 text-muted transition-colors hover:border-border hover:bg-surface-alt hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+    @apply inline-flex items-center justify-center rounded-[var(--radius-md)] border border-transparent p-1 text-muted transition-colors hover:border-border hover:bg-surface-alt hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background;
   }
 }

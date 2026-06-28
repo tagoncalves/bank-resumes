@@ -20,6 +20,7 @@ const preview: Preview = {
     (Story, context) => {
       const theme = context.globals.theme === "dark" ? "dark" : "light";
       document.documentElement.dataset.theme = theme;
+      document.documentElement.classList.toggle("dark", theme === "dark");
 
       return <Story />;
     },
