@@ -30,6 +30,10 @@ interface Transaction {
   isInstallment: boolean;
   isSubscription: boolean;
   transactionType: string;
+  nature: string;
+  reviewStatus: string;
+  spendingImpact: boolean;
+  cashflowImpact: boolean;
   source: string;
   categoryId?: string | null;
   category?: { name: string; color: string } | null;
@@ -55,6 +59,8 @@ function TransactionsInner() {
   const categoryIdsStr = searchParams.get("categoryId") ?? "";
   const originStr = searchParams.get("origin") ?? "";
   const typeStr = searchParams.get("type") ?? "";
+  const natureStr = searchParams.get("nature") ?? "";
+  const reviewStatusStr = searchParams.get("reviewStatus") ?? "";
   const search = searchParams.get("search") ?? "";
   const currency = searchParams.get("currency") ?? "";
   const amountMin = searchParams.get("amountMin") ?? "";
@@ -66,8 +72,12 @@ function TransactionsInner() {
   const [total, setTotal] = useState(0);
   const [debitTotal, setDebitTotal] = useState(0);
   const [creditTotal, setCreditTotal] = useState(0);
+  const [cashOutflowTotal, setCashOutflowTotal] = useState(0);
+  const [excludedOutflowTotal, setExcludedOutflowTotal] = useState(0);
   const [debitTotalUsd, setDebitTotalUsd] = useState(0);
   const [creditTotalUsd, setCreditTotalUsd] = useState(0);
+  const [cashOutflowTotalUsd, setCashOutflowTotalUsd] = useState(0);
+  const [excludedOutflowTotalUsd, setExcludedOutflowTotalUsd] = useState(0);
   const [netTotal, setNetTotal] = useState(0);
   const [netTotalUsd, setNetTotalUsd] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -111,6 +121,8 @@ function TransactionsInner() {
     if (categoryIdsStr) params.set("categoryId", categoryIdsStr);
     if (originStr) params.set("origin", originStr);
     if (typeStr) params.set("type", typeStr);
+    if (natureStr) params.set("nature", natureStr);
+    if (reviewStatusStr) params.set("reviewStatus", reviewStatusStr);
     if (currency) params.set("currency", currency);
     if (appliedAmountMin) params.set("amountMin", appliedAmountMin);
     if (appliedAmountMax) params.set("amountMax", appliedAmountMax);
@@ -121,13 +133,17 @@ function TransactionsInner() {
     setTotal(json.total ?? 0);
     setDebitTotal(json.debitTotal ?? 0);
     setCreditTotal(json.creditTotal ?? 0);
+    setCashOutflowTotal(json.cashOutflowTotal ?? 0);
+    setExcludedOutflowTotal(json.excludedOutflowTotal ?? 0);
     setDebitTotalUsd(json.debitTotalUsd ?? 0);
     setCreditTotalUsd(json.creditTotalUsd ?? 0);
+    setCashOutflowTotalUsd(json.cashOutflowTotalUsd ?? 0);
+    setExcludedOutflowTotalUsd(json.excludedOutflowTotalUsd ?? 0);
     setNetTotal(json.netTotal ?? 0);
     setNetTotalUsd(json.netTotalUsd ?? 0);
     setLoading(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, appliedSearch, sortBy, sortOrder, currentMonth, currentMonths, categoryIdsStr, originStr, typeStr, currency, appliedAmountMin, appliedAmountMax, statementId]);
+  }, [page, appliedSearch, sortBy, sortOrder, currentMonth, currentMonths, categoryIdsStr, originStr, typeStr, natureStr, reviewStatusStr, currency, appliedAmountMin, appliedAmountMax, statementId]);
 
   useEffect(() => {
     fetchTransactions();
@@ -139,7 +155,7 @@ function TransactionsInner() {
 
   useEffect(() => {
     setPage(1);
-  }, [appliedSearch, sortBy, sortOrder, currentMonth, currentMonths, categoryIdsStr, originStr, typeStr, currency, appliedAmountMin, appliedAmountMax, statementId]);
+  }, [appliedSearch, sortBy, sortOrder, currentMonth, currentMonths, categoryIdsStr, originStr, typeStr, natureStr, reviewStatusStr, currency, appliedAmountMin, appliedAmountMax, statementId]);
 
   function updateFilterParam(key: string, value: string) {
     const sp = new URLSearchParams(window.location.search || searchParams.toString());
@@ -176,6 +192,8 @@ function TransactionsInner() {
   const showingUsdTotals = currency === "USD";
   const shownDebitTotal = showingUsdTotals ? debitTotalUsd : debitTotal;
   const shownCreditTotal = showingUsdTotals ? creditTotalUsd : creditTotal;
+  const shownCashOutflowTotal = showingUsdTotals ? cashOutflowTotalUsd : cashOutflowTotal;
+  const shownExcludedOutflowTotal = showingUsdTotals ? excludedOutflowTotalUsd : excludedOutflowTotal;
   const shownNetTotal = showingUsdTotals ? netTotalUsd : netTotal;
   const formatShownMoney = showingUsdTotals ? formatUSD : formatARS;
   const isNegativeNet = shownNetTotal < 0;
@@ -201,12 +219,20 @@ function TransactionsInner() {
         />
         <div className="transaction-summary-grid lg:shrink-0">
           <div className="responsive-card overflow-hidden rounded-lg border border-zinc-100 bg-white px-3 py-2 shadow-sm">
-            <p className="text-[10px] uppercase tracking-wide text-zinc-400">Gastos</p>
+            <p className="text-[10px] uppercase tracking-wide text-zinc-400">Gastos computables</p>
             <p className="transaction-summary-money font-mono font-semibold tabular-nums text-red-600">{formatShownMoney(shownDebitTotal)}</p>
           </div>
           <div className="responsive-card overflow-hidden rounded-lg border border-zinc-100 bg-white px-3 py-2 shadow-sm">
             <p className="text-[10px] uppercase tracking-wide text-zinc-400">Ingresos</p>
             <p className="transaction-summary-money font-mono font-semibold tabular-nums text-emerald-600">+{formatShownMoney(shownCreditTotal)}</p>
+          </div>
+          <div className="responsive-card overflow-hidden rounded-lg border border-zinc-100 bg-white px-3 py-2 shadow-sm">
+            <p className="text-[10px] uppercase tracking-wide text-zinc-400">Salida de caja</p>
+            <p className="transaction-summary-money font-mono font-semibold tabular-nums text-red-600">{formatShownMoney(shownCashOutflowTotal)}</p>
+          </div>
+          <div className="responsive-card overflow-hidden rounded-lg border border-zinc-100 bg-white px-3 py-2 shadow-sm">
+            <p className="text-[10px] uppercase tracking-wide text-zinc-400">Excluidos de gasto</p>
+            <p className="transaction-summary-money font-mono font-semibold tabular-nums text-zinc-600">{formatShownMoney(shownExcludedOutflowTotal)}</p>
           </div>
           <div className="responsive-card overflow-hidden rounded-lg border border-zinc-100 bg-white px-3 py-2 shadow-sm">
             <p className="text-[10px] uppercase tracking-wide text-zinc-400">Neto</p>
@@ -353,11 +379,7 @@ function TransactionsInner() {
                               Suscripción
                             </span>
                           )}
-                          {t.source === "MANUAL" && t.statement && t.transactionType === "DEBIT" && (
-                            <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">
-                              Pago de resumen
-                            </span>
-                          )}
+                          <NatureBadge nature={t.nature} reviewStatus={t.reviewStatus} spendingImpact={t.spendingImpact} />
                         </div>
                       </td>
                       <td className="px-5 py-2.5 text-xs text-zinc-500">
@@ -447,6 +469,30 @@ function TransactionsInner() {
       )}
     </div>
   );
+}
+
+function NatureBadge({ nature, reviewStatus, spendingImpact }: { nature: string; reviewStatus: string; spendingImpact: boolean }) {
+  const label: Record<string, string> = {
+    income: "Ingreso",
+    expense: "Gasto",
+    subscription: "Suscripción",
+    installment: "Cuota",
+    credit_card_payment: "Pago tarjeta",
+    transfer: "Transferencia",
+    refund: "Devolución",
+    manual_adjustment: "Ajuste",
+    ignored: "Ignorado",
+  };
+  const isExcluded = !spendingImpact && nature !== "income";
+  const classes = isExcluded
+    ? "bg-zinc-100 text-zinc-600"
+    : reviewStatus === "needs_review" || reviewStatus === "duplicate_candidate"
+    ? "bg-amber-50 text-amber-700"
+    : nature === "income"
+    ? "bg-emerald-50 text-emerald-700"
+    : "bg-red-50 text-red-700";
+
+  return <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${classes}`}>{label[nature] ?? nature}</span>;
 }
 
 export default function TransactionsPage() {

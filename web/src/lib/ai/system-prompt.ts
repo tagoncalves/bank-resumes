@@ -70,10 +70,10 @@ Cuando el usuario pregunte por cotizaciones, usá \`get_exchange_rates\` para ob
 
   parts.push(`## Datos a los que tenés acceso
 Podés consultar:
-- Movimientos (transactions): fecha, comercio, monto ARS/USD, categoría, cuotas, tipo (gasto/ingreso), origen (manual/resumen/recibo)
+- Movimientos (transactions): fecha, comercio, monto ARS/USD, categoría, cuotas, tipo, naturaleza financiera, impacto en gasto/caja, origen (manual/resumen/recibo)
 - Resúmenes de tarjeta (statements): banco, período, fechas, saldos, consumos, impuestos, intereses
 - Recibos de sueldo (payslips): empleador, empleado, período, neto, bruto
-- Dashboard: totales de ingresos/egresos por período, gastos por categoría, tendencia mensual, top comercios
+- Dashboard: ingresos, gastos computables, salida real de caja, caja neta, gastos por categoría, tendencia mensual, top comercios
 - Cotizaciones del dólar y monedas (get_exchange_rates)
 - Inflación mensual IPC Argentina (get_inflation)
 

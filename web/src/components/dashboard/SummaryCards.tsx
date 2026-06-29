@@ -8,7 +8,10 @@ import { cn } from "@/lib/utils";
 interface SummaryCardsProps {
   totalIncomeArs: number;
   totalExpenseArs: number;
+  totalCashOutflowArs: number;
+  excludedOutflowArs: number;
   netBalanceArs: number;
+  cashflowBalanceArs: number;
   netBalanceUsd: number;
   periodLabel: string;
 }
@@ -16,7 +19,10 @@ interface SummaryCardsProps {
 export default function SummaryCards({
   totalIncomeArs,
   totalExpenseArs,
+  totalCashOutflowArs,
+  excludedOutflowArs,
   netBalanceArs,
+  cashflowBalanceArs,
   netBalanceUsd,
   periodLabel,
 }: SummaryCardsProps) {
@@ -30,21 +36,35 @@ export default function SummaryCards({
         valueClass="text-income"
       />
       <MetricCard
-        label="Egresos del período"
+        label="Gastos computables"
         value={formatARS(totalExpenseArs)}
         icon={<ArrowDownCircle className="h-4 w-4 text-expense" />}
-        sub={periodLabel}
+        sub="Consumo real, sin pagos de tarjeta ni transferencias"
         valueClass="text-expense"
       />
       <MetricCard
-        label="Balance neto ARS"
+        label="Neto financiero ARS"
         value={formatARS(netBalanceArs)}
         icon={<Scale className="h-4 w-4 text-primary" />}
-        sub={periodLabel}
+        sub="Ingresos computables - gastos computables"
         valueClass={cn(netBalanceArs >= 0 ? "text-foreground" : "text-expense")}
       />
       <MetricCard
-        label="Balance neto USD"
+        label="Salida real de caja"
+        value={formatARS(totalCashOutflowArs)}
+        icon={<Wallet className="h-4 w-4 text-saving" />}
+        sub={excludedOutflowArs > 0 ? `Incluye ${formatARS(excludedOutflowArs)} en pagos/transferencias excluidas` : periodLabel}
+        valueClass="text-expense"
+      />
+      <MetricCard
+        label="Caja neta ARS"
+        value={formatARS(cashflowBalanceArs)}
+        icon={<Scale className="h-4 w-4 text-primary" />}
+        sub="Ingresos - salidas reales de caja"
+        valueClass={cn(cashflowBalanceArs >= 0 ? "text-foreground" : "text-expense")}
+      />
+      <MetricCard
+        label="Neto financiero USD"
         value={formatUSD(netBalanceUsd)}
         icon={<Wallet className="h-4 w-4 text-saving" />}
         sub={periodLabel}

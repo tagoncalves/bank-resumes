@@ -106,7 +106,10 @@ export default async function DashboardPage({
         <SummaryCards
           totalIncomeArs={data.totalIncomeArs}
           totalExpenseArs={data.totalExpenseArs}
+          totalCashOutflowArs={data.totalCashOutflowArs}
+          excludedOutflowArs={data.excludedOutflowArs}
           netBalanceArs={data.netBalanceArs}
+          cashflowBalanceArs={data.cashflowBalanceArs}
           netBalanceUsd={data.netBalanceUsd}
           periodLabel={periodLabel}
         />

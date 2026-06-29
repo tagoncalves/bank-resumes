@@ -9,7 +9,7 @@ export const TOOL_DEFINITIONS = [
     type: "function" as const,
     function: {
       name: "get_dashboard_summary",
-      description: "Obtener un resumen financiero agregado: ingresos, egresos, balance neto, gastos por categoría, tendencia mensual y top comercios.",
+      description: "Obtener un resumen financiero agregado: ingresos computables, gastos computables, salida real de caja, balance neto, gastos por categoría y top comercios.",
       parameters: {
         type: "object",
         properties: {
@@ -154,23 +154,28 @@ async function handleDashboardSummary(userId: string, args: Record<string, unkno
   const originFilter = !selectedOrigins.length || selectedOrigins.includes("all") ? {} : { OR: originClauses };
   const scopedFilter = { ...txPeriodFilter, ...originFilter };
 
-  const [incomeAgg, expenseAgg, txByCategory, categories] = await Promise.all([
-    prisma.transaction.aggregate({ where: { ...scopedFilter, transactionType: "CREDIT" }, _sum: { amountArs: true, amountUsd: true } }),
-    prisma.transaction.aggregate({ where: { ...scopedFilter, transactionType: "DEBIT" }, _sum: { amountArs: true, amountUsd: true } }),
-    prisma.transaction.groupBy({ by: ["categoryId"], where: { ...scopedFilter, transactionType: "DEBIT" }, _sum: { amountArs: true }, _count: { id: true }, orderBy: { _sum: { amountArs: "desc" } } }),
+  const [incomeAgg, expenseAgg, cashflowOutAgg, txByCategory, categories] = await Promise.all([
+    prisma.transaction.aggregate({ where: { ...scopedFilter, transactionType: "CREDIT", cashflowImpact: true }, _sum: { amountArs: true, amountUsd: true } }),
+    prisma.transaction.aggregate({ where: { ...scopedFilter, transactionType: "DEBIT", spendingImpact: true }, _sum: { amountArs: true, amountUsd: true } }),
+    prisma.transaction.aggregate({ where: { ...scopedFilter, transactionType: "DEBIT", cashflowImpact: true }, _sum: { amountArs: true, amountUsd: true } }),
+    prisma.transaction.groupBy({ by: ["categoryId"], where: { ...scopedFilter, transactionType: "DEBIT", spendingImpact: true }, _sum: { amountArs: true }, _count: { id: true }, orderBy: { _sum: { amountArs: "desc" } } }),
     prisma.category.findMany(),
   ]);
 
   const catMap = new Map(categories.map((c) => [c.id, c]));
   const totalIncomeArs = toMoneyNumber(incomeAgg._sum.amountArs);
   const totalExpenseArs = toMoneyNumber(expenseAgg._sum.amountArs);
+  const totalCashflowOutArs = toMoneyNumber(cashflowOutAgg._sum.amountArs);
   const totalCatSpend = txByCategory.reduce((s, g) => s + toMoneyNumber(g._sum.amountArs), 0);
 
   return sanitize({
     periodo: `${since.toISOString().slice(0, 10)} a ${now.toISOString().slice(0, 10)}`,
-    ingresos: { ars: totalIncomeArs, usd: toMoneyNumber(incomeAgg._sum.amountUsd) },
-    egresos: { ars: totalExpenseArs, usd: toMoneyNumber(expenseAgg._sum.amountUsd) },
-    balanceNeto: { ars: totalIncomeArs - totalExpenseArs },
+    ingresos: { ars: totalIncomeArs, usd: toMoneyNumber(incomeAgg._sum.amountUsd), criterio: "CREDIT con impacto en caja" },
+    gastosComputables: { ars: totalExpenseArs, usd: toMoneyNumber(expenseAgg._sum.amountUsd), criterio: "DEBIT con impacto en gasto" },
+    salidaRealDeCaja: { ars: totalCashflowOutArs, usd: toMoneyNumber(cashflowOutAgg._sum.amountUsd), criterio: "DEBIT con impacto en caja" },
+    excluidosDeGasto: { ars: Math.max(0, totalCashflowOutArs - totalExpenseArs) },
+    balanceFinanciero: { ars: totalIncomeArs - totalExpenseArs },
+    cajaNeta: { ars: totalIncomeArs - totalCashflowOutArs },
     gastosPorCategoria: txByCategory.map((g) => {
       const cat = g.categoryId ? catMap.get(g.categoryId) : null;
       const total = toMoneyNumber(g._sum.amountArs);
@@ -213,17 +218,24 @@ async function handleTransactions(userId: string, args: Record<string, unknown>)
     prisma.transaction.count({ where: where as any }),
   ]);
 
-  const mapped = transactions.map((t) => ({
-    fecha: t.date.toISOString().slice(0, 10),
-    comercio: t.normalizedMerchant || t.merchantName,
-    montoArs: toMoneyNumber(t.amountArs),
-    montoUsd: toNullableMoneyNumber(t.amountUsd),
-    tipo: t.transactionType === "CREDIT" ? "ingreso" : "gasto",
-    origen: t.source === "MANUAL" ? "manual" : t.statementId ? "resumen" : t.payslip ? "recibo" : "importado",
-    categoria: t.category?.name ?? null,
-    cuotas: t.isInstallment ? `${t.installmentCurrent}/${t.installmentTotal}` : null,
-    tarjeta: t.cardLastFour ?? null,
-  }));
+  const mapped = transactions.map((t) => {
+    const tipo = t.transactionType === "CREDIT" ? "ingreso" : t.spendingImpact ? "gasto" : "salida de caja no computable como gasto";
+
+    return {
+      fecha: t.date.toISOString().slice(0, 10),
+      comercio: t.normalizedMerchant || t.merchantName,
+      montoArs: toMoneyNumber(t.amountArs),
+      montoUsd: toNullableMoneyNumber(t.amountUsd),
+      tipo,
+      naturaleza: t.nature,
+      impactaGasto: t.spendingImpact,
+      impactaCaja: t.cashflowImpact,
+      origen: t.source === "MANUAL" ? "manual" : t.statementId ? "resumen" : t.payslip ? "recibo" : "importado",
+      categoria: t.category?.name ?? null,
+      cuotas: t.isInstallment ? `${t.installmentCurrent}/${t.installmentTotal}` : null,
+      tarjeta: t.cardLastFour ?? null,
+    };
+  });
 
   return sanitize({ total, resultados: mapped.length, movimientos: mapped });
 }

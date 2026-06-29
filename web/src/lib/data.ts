@@ -34,10 +34,26 @@ export async function getDashboardSummary({
     ...txPeriodFilter,
     ...originFilter,
   };
+  const spendingFilter: Prisma.TransactionWhereInput = {
+    ...scopedTxPeriodFilter,
+    transactionType: "DEBIT",
+    spendingImpact: true,
+  };
+  const incomeFilter: Prisma.TransactionWhereInput = {
+    ...scopedTxPeriodFilter,
+    transactionType: "CREDIT",
+    cashflowImpact: true,
+  };
+  const cashOutflowFilter: Prisma.TransactionWhereInput = {
+    ...scopedTxPeriodFilter,
+    transactionType: "DEBIT",
+    cashflowImpact: true,
+  };
 
   const [
     incomeAgg,
     expenseAgg,
+    cashOutflowAgg,
     txByCategory,
     txForTrend,
     topMerchantsRaw,
@@ -45,27 +61,31 @@ export async function getDashboardSummary({
     totalTransactionCount,
   ] = await Promise.all([
     prisma.transaction.aggregate({
-      where: { ...scopedTxPeriodFilter, transactionType: "CREDIT" },
+      where: incomeFilter,
       _sum: { amountArs: true, amountUsd: true },
     }),
     prisma.transaction.aggregate({
-      where: { ...scopedTxPeriodFilter, transactionType: "DEBIT" },
+      where: spendingFilter,
+      _sum: { amountArs: true, amountUsd: true },
+    }),
+    prisma.transaction.aggregate({
+      where: cashOutflowFilter,
       _sum: { amountArs: true, amountUsd: true },
     }),
     prisma.transaction.groupBy({
       by: ["categoryId"],
-      where: { ...scopedTxPeriodFilter, transactionType: "DEBIT" },
+      where: spendingFilter,
       _sum: { amountArs: true },
       _count: { id: true },
       orderBy: { _sum: { amountArs: "desc" } },
     }),
     prisma.transaction.findMany({
       where: scopedTxPeriodFilter,
-      select: { date: true, amountArs: true, amountUsd: true, transactionType: true },
+      select: { date: true, amountArs: true, amountUsd: true, transactionType: true, spendingImpact: true, cashflowImpact: true },
     }),
     prisma.transaction.groupBy({
       by: ["normalizedMerchant", "categoryId"],
-      where: { ...scopedTxPeriodFilter, transactionType: "DEBIT" },
+      where: spendingFilter,
       _sum: { amountArs: true },
       _count: { id: true },
       orderBy: { _sum: { amountArs: "desc" } },
@@ -80,8 +100,10 @@ export async function getDashboardSummary({
   const totalCatSpend = txByCategory.reduce((s, g) => s + toMoneyNumber(g._sum.amountArs), 0);
   const totalIncomeArs = toMoneyNumber(incomeAgg._sum.amountArs);
   const totalExpenseArs = toMoneyNumber(expenseAgg._sum.amountArs);
+  const totalCashOutflowArs = toMoneyNumber(cashOutflowAgg._sum.amountArs);
   const totalIncomeUsd = toMoneyNumber(incomeAgg._sum.amountUsd);
   const totalExpenseUsd = toMoneyNumber(expenseAgg._sum.amountUsd);
+  const totalCashOutflowUsd = toMoneyNumber(cashOutflowAgg._sum.amountUsd);
   const spendingByCategory = txByCategory.map((g) => {
     const cat = g.categoryId ? catMap.get(g.categoryId) : null;
     const total = toMoneyNumber(g._sum.amountArs);
@@ -95,17 +117,24 @@ export async function getDashboardSummary({
     };
   });
 
-  const monthlyMap = new Map<string, { income: number; expenses: number; netBalance: number; transactionCount: number }>();
+  const monthlyMap = new Map<string, { income: number; expenses: number; cashOutflow: number; netBalance: number; cashflowBalance: number; transactionCount: number }>();
   for (const t of txForTrend) {
     const key = `${t.date.getFullYear()}-${String(t.date.getMonth() + 1).padStart(2, "0")}`;
-    const existing = monthlyMap.get(key) ?? { income: 0, expenses: 0, netBalance: 0, transactionCount: 0 };
+    const existing = monthlyMap.get(key) ?? { income: 0, expenses: 0, cashOutflow: 0, netBalance: 0, cashflowBalance: 0, transactionCount: 0 };
     const amount = toMoneyNumber(t.amountArs);
-    if (t.transactionType === "CREDIT") {
+    if (t.transactionType === "CREDIT" && t.cashflowImpact) {
       existing.income += amount;
       existing.netBalance += amount;
+      existing.cashflowBalance += amount;
     } else {
-      existing.expenses += amount;
-      existing.netBalance -= amount;
+      if (t.cashflowImpact) {
+        existing.cashOutflow += amount;
+        existing.cashflowBalance -= amount;
+      }
+      if (t.spendingImpact) {
+        existing.expenses += amount;
+        existing.netBalance -= amount;
+      }
     }
     existing.transactionCount += 1;
     monthlyMap.set(key, existing);
@@ -130,10 +159,16 @@ export async function getDashboardSummary({
     origin: origin ?? "all",
     totalIncomeArs,
     totalExpenseArs,
+    totalCashOutflowArs,
+    excludedOutflowArs: Math.max(0, totalCashOutflowArs - totalExpenseArs),
     netBalanceArs: totalIncomeArs - totalExpenseArs,
+    cashflowBalanceArs: totalIncomeArs - totalCashOutflowArs,
     totalIncomeUsd,
     totalExpenseUsd,
+    totalCashOutflowUsd,
+    excludedOutflowUsd: Math.max(0, totalCashOutflowUsd - totalExpenseUsd),
     netBalanceUsd: totalIncomeUsd - totalExpenseUsd,
+    cashflowBalanceUsd: totalIncomeUsd - totalCashOutflowUsd,
     spendingByCategory,
     monthlyTrend,
     topMerchants,

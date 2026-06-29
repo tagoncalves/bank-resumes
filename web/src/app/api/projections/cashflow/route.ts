@@ -33,6 +33,10 @@ function estimateConfidence(sampleMonths: number, lookbackMonths: number) {
   return "LOW";
 }
 
+function recurringBackerKey(merchantName: string, amountArs: number, transactionType: string) {
+  return `${merchantName.trim().toLowerCase()}|${Math.round(amountArs * 100)}|${transactionType}`;
+}
+
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session?.userId) {
@@ -50,16 +54,36 @@ export async function GET(req: NextRequest) {
   const lookbackFrom = addMonths(now, -lookback);
 
   // --- 1. Recurring transactions (both CREDIT and DEBIT) ---
-  const recurrings = await prisma.recurringTransaction.findMany({
-    where: { userId: session.userId, enabled: true },
-    select: {
-      merchantName: true,
-      amountArs: true,
-      transactionType: true,
-      frequency: true,
-      interval: true,
-    },
-  });
+  // Recurring rules are persisted, but projections should ignore stale rules left
+  // behind after their source movements were deleted.
+  const [recurringCandidates, activeRecurringBackers] = await Promise.all([
+    prisma.recurringTransaction.findMany({
+      where: { userId: session.userId, enabled: true },
+      select: {
+        merchantName: true,
+        amountArs: true,
+        transactionType: true,
+        frequency: true,
+        interval: true,
+        occurrences: {
+          where: { transaction: { deletedAt: null } },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    }),
+    prisma.transaction.findMany({
+      where: { userId: session.userId, deletedAt: null },
+      select: { merchantName: true, amountArs: true, transactionType: true },
+    }),
+  ]);
+
+  const activeRecurringBackerKeys = new Set(
+    activeRecurringBackers.map((tx) => recurringBackerKey(tx.merchantName, toMoneyNumber(tx.amountArs), tx.transactionType)),
+  );
+  const recurrings = recurringCandidates.filter(
+    (r) => r.occurrences.length > 0 || activeRecurringBackerKeys.has(recurringBackerKey(r.merchantName, toMoneyNumber(r.amountArs), r.transactionType)),
+  );
 
   let monthlyRecurringIncome = 0;
   let monthlyRecurringExpense = 0;
@@ -83,6 +107,7 @@ export async function GET(req: NextRequest) {
       isSubscription: true,
       deletedAt: null,
       transactionType: "DEBIT",
+      spendingImpact: true,
     },
     select: { merchantName: true, amountArs: true, date: true },
   });
@@ -114,9 +139,10 @@ export async function GET(req: NextRequest) {
       deletedAt: null,
       date: { gte: lookbackFrom, lte: now },
       isSubscription: false,
+      cashflowImpact: true,
       NOT: { source: "MANUAL", statementId: { not: null } },
     },
-    select: { date: true, amountArs: true, transactionType: true, isInstallment: true },
+    select: { date: true, amountArs: true, transactionType: true, isInstallment: true, spendingImpact: true },
   });
 
   const monthlyMap = new Map<string, { income: number; expense: number }>();
@@ -127,7 +153,7 @@ export async function GET(req: NextRequest) {
     const amount = toMoneyNumber(tx.amountArs);
     if (tx.transactionType === "CREDIT") {
       entry.income += amount;
-    } else if (!tx.isInstallment) {
+    } else if (!tx.isInstallment && tx.spendingImpact) {
       entry.expense += amount;
     }
   }
@@ -149,7 +175,9 @@ export async function GET(req: NextRequest) {
     by: ["merchantName", "amountArs"],
     where: {
       userId: session.userId,
+      transactionType: "DEBIT",
       isInstallment: true,
+      spendingImpact: true,
       deletedAt: null,
       installmentTotal: { not: null },
     },

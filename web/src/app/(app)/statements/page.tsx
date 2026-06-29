@@ -26,7 +26,7 @@ export default async function StatementsPage() {
   const paymentGroups = statementIds.length > 0
     ? await prisma.transaction.groupBy({
         by: ["statementId"],
-        where: { statementId: { in: statementIds }, transactionType: "DEBIT", deletedAt: null },
+        where: { statementId: { in: statementIds }, transactionType: "DEBIT", nature: "credit_card_payment", deletedAt: null },
         _sum: { amountArs: true, amountUsd: true },
       })
     : [];

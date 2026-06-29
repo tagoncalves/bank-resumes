@@ -19,6 +19,8 @@ interface MonthData {
   income: number;
   expenses: number;
   netBalance: number;
+  cashflowBalance?: number;
+  cashOutflow?: number;
   transactionCount: number;
 }
 
@@ -90,7 +92,7 @@ export default function MonthlyTrend({ data }: { data: MonthData[] }) {
             <Tooltip
               formatter={(value, _name, item) => {
                 const payload = item?.payload as MonthData | undefined;
-                return [formatARS(Number(value)), payload ? `Ingresos ${formatARS(payload.income)} · Egresos ${formatARS(payload.expenses)}` : "Balance"];
+                return [formatARS(Number(value)), payload ? `Ingresos ${formatARS(payload.income)} · Gastos ${formatARS(payload.expenses)}${payload.cashOutflow != null ? ` · Salida caja ${formatARS(payload.cashOutflow)}` : ""}` : "Balance"];
               }}
               contentStyle={{ fontSize: 12, borderColor: "var(--color-border)", background: "var(--color-surface)", color: "var(--color-text)" }}
               cursor={{ fill: "var(--color-selected)", opacity: 0.65 }}

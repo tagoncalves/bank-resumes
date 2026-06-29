@@ -250,6 +250,10 @@ model Transaction {
   amountUsd          Decimal?
   cardLastFour       String?
   transactionType    String    @default("DEBIT")
+  nature             String    @default("expense") // income | expense | subscription | installment | credit_card_payment | transfer | refund | manual_adjustment | ignored
+  reviewStatus       String    @default("auto_categorized") // confirmed | auto_categorized | needs_review | duplicate_candidate | excluded_from_spending
+  spendingImpact     Boolean   @default(true)
+  cashflowImpact     Boolean   @default(true)
   source             String    @default("IMPORTED") // "IMPORTED" | "MANUAL"
   isInstallment      Boolean   @default(false)
   isSubscription     Boolean   @default(false)
@@ -267,6 +271,8 @@ model Transaction {
   @@index([userId])
   @@index([date])
   @@index([categoryId])
+  @@index([nature])
+  @@index([reviewStatus])
 }
 
 model NotificationChannel {

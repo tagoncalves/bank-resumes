@@ -30,7 +30,7 @@ export default async function StatementDetailPage({ params }: { params: Promise<
 
   const paymentsSum = bs
     ? await prisma.transaction.aggregate({
-        where: { statementId: id, userId: session.userId, transactionType: "DEBIT", deletedAt: null },
+        where: { statementId: id, userId: session.userId, transactionType: "DEBIT", nature: "credit_card_payment", deletedAt: null },
         _sum: { amountArs: true, amountUsd: true },
       })
     : null;

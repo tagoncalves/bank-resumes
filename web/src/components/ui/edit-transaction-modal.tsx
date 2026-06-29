@@ -17,6 +17,10 @@ interface TransactionData {
   amountUsd?: number | null;
   categoryId?: string | null;
   transactionType: string;
+  nature: string;
+  reviewStatus: string;
+  spendingImpact: boolean;
+  cashflowImpact: boolean;
   isInstallment: boolean;
   installmentCurrent?: number | null;
   installmentTotal?: number | null;
@@ -42,6 +46,7 @@ export function EditTransactionModal({
     amountUsd: transaction.amountUsd ? String(transaction.amountUsd) : "",
     categoryId: transaction.categoryId ?? "",
     transactionType: transaction.transactionType as "DEBIT" | "CREDIT",
+    nature: transaction.nature ?? (transaction.transactionType === "CREDIT" ? "income" : "expense"),
     isInstallment: transaction.isInstallment,
     installmentCurrent: String(transaction.installmentCurrent ?? 1),
     installmentTotal: String(transaction.installmentTotal ?? 2),
@@ -72,6 +77,10 @@ export function EditTransactionModal({
       amountUsd: form.amountUsd ? parseMoneyNumber(form.amountUsd) : null,
       categoryId: form.categoryId || null,
       transactionType: form.transactionType,
+      nature: form.nature,
+      reviewStatus: form.nature === "credit_card_payment" || form.nature === "transfer" || form.nature === "ignored" ? "excluded_from_spending" : "confirmed",
+      spendingImpact: ["expense", "subscription", "installment"].includes(form.nature),
+      cashflowImpact: form.nature !== "ignored",
       isInstallment: form.isInstallment,
       installmentCurrent: form.isInstallment ? parseInt(form.installmentCurrent, 10) : null,
       installmentTotal: form.isInstallment ? parseInt(form.installmentTotal, 10) : null,
@@ -151,6 +160,25 @@ export function EditTransactionModal({
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-muted">Naturaleza financiera</label>
+              <select
+                value={form.nature}
+                onChange={(e) => set("nature", e.target.value)}
+                className="ds-input"
+              >
+                <option value="income">Ingreso computable</option>
+                <option value="expense">Gasto computable</option>
+                <option value="subscription">Suscripción</option>
+                <option value="installment">Cuota</option>
+                <option value="credit_card_payment">Pago de resumen/tarjeta</option>
+                <option value="transfer">Transferencia</option>
+                <option value="refund">Devolución</option>
+                <option value="manual_adjustment">Ajuste manual</option>
+                <option value="ignored">Ignorado</option>
+              </select>
+              <p className="mt-1 text-[11px] text-muted">Pagos, transferencias e ignorados no suman como gasto.</p>
             </div>
             <div className="sm:col-span-2">
               <label className="mb-1 block text-xs text-muted">Descripción</label>

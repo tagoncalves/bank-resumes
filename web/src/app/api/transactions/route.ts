@@ -6,6 +6,7 @@ import { toMoneyNumber, toNullableMoneyNumber } from "@/lib/money";
 import { createManualTransactionForUser } from "@/lib/transactions/create-transaction";
 import { dateInputValue, parseDateOnly, parseDateRangeEnd, parseDateRangeStart } from "@/lib/dates";
 import { generateOccurrenceDates, nextOccurrenceAfter, normalizeFrequency, normalizeInterval } from "@/lib/recurring/schedule";
+import { inferTransactionClassification, type TransactionNature, type TransactionReviewStatus } from "@/lib/transactions/classification";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -24,6 +25,8 @@ export async function GET(req: NextRequest) {
   const currency = searchParams.get("currency");
   const amountMin = searchParams.get("amountMin");
   const amountMax = searchParams.get("amountMax");
+  const nature = searchParams.get("nature");
+  const reviewStatus = searchParams.get("reviewStatus");
 
   const sortBy = searchParams.get("sortBy") ?? "date";
   const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
@@ -87,6 +90,22 @@ export async function GET(req: NextRequest) {
       where.transactionType = { in: types };
     }
   }
+  if (nature) {
+    const natures = nature.split(",").filter(Boolean);
+    if (natures.length === 1) {
+      where.nature = natures[0];
+    } else if (natures.length > 1) {
+      where.nature = { in: natures };
+    }
+  }
+  if (reviewStatus) {
+    const statuses = reviewStatus.split(",").filter(Boolean);
+    if (statuses.length === 1) {
+      where.reviewStatus = statuses[0];
+    } else if (statuses.length > 1) {
+      where.reviewStatus = { in: statuses };
+    }
+  }
   const statementId = searchParams.get("statementId");
   if (statementId) {
     where.statementId = statementId;
@@ -109,7 +128,7 @@ export async function GET(req: NextRequest) {
 
   if (andClauses.length) where.AND = andClauses;
 
-  const [total, transactions, debitSum, creditSum] = await Promise.all([
+  const [total, transactions, debitSum, creditSum, cashOutflowSum] = await Promise.all([
     prisma.transaction.count({ where }),
     prisma.transaction.findMany({
       where,
@@ -123,11 +142,15 @@ export async function GET(req: NextRequest) {
       },
     }),
     prisma.transaction.aggregate({
-      where: { ...where, transactionType: "DEBIT" },
+      where: { ...where, transactionType: "DEBIT", spendingImpact: true },
       _sum: { amountArs: true, amountUsd: true },
     }),
     prisma.transaction.aggregate({
-      where: { ...where, transactionType: "CREDIT" },
+      where: { ...where, transactionType: "CREDIT", cashflowImpact: true },
+      _sum: { amountArs: true, amountUsd: true },
+    }),
+    prisma.transaction.aggregate({
+      where: { ...where, transactionType: "DEBIT", cashflowImpact: true },
       _sum: { amountArs: true, amountUsd: true },
     }),
   ]);
@@ -145,8 +168,12 @@ export async function GET(req: NextRequest) {
     pageSize: limit,
     debitTotal: toMoneyNumber(debitSum._sum.amountArs),
     creditTotal: toMoneyNumber(creditSum._sum.amountArs),
+    cashOutflowTotal: toMoneyNumber(cashOutflowSum._sum.amountArs),
+    excludedOutflowTotal: Math.max(0, toMoneyNumber(cashOutflowSum._sum.amountArs) - toMoneyNumber(debitSum._sum.amountArs)),
     debitTotalUsd: toMoneyNumber(debitSum._sum.amountUsd),
     creditTotalUsd: toMoneyNumber(creditSum._sum.amountUsd),
+    cashOutflowTotalUsd: toMoneyNumber(cashOutflowSum._sum.amountUsd),
+    excludedOutflowTotalUsd: Math.max(0, toMoneyNumber(cashOutflowSum._sum.amountUsd) - toMoneyNumber(debitSum._sum.amountUsd)),
     netTotal: toMoneyNumber(debitSum._sum.amountArs) - toMoneyNumber(creditSum._sum.amountArs),
     netTotalUsd: toMoneyNumber(debitSum._sum.amountUsd) - toMoneyNumber(creditSum._sum.amountUsd),
   });
@@ -169,6 +196,10 @@ export async function POST(req: NextRequest) {
     installmentCurrent,
     installmentTotal,
     recurring,
+    nature,
+    reviewStatus,
+    spendingImpact,
+    cashflowImpact,
   } = body as {
     statementId?: string;
     date: string;
@@ -180,6 +211,10 @@ export async function POST(req: NextRequest) {
     isInstallment?: boolean;
     installmentCurrent?: number;
     installmentTotal?: number;
+    nature?: TransactionNature;
+    reviewStatus?: TransactionReviewStatus;
+    spendingImpact?: boolean;
+    cashflowImpact?: boolean;
     recurring?: {
       enabled?: boolean;
       anchorDate?: string;
@@ -213,6 +248,10 @@ export async function POST(req: NextRequest) {
       isInstallment,
       installmentCurrent,
       installmentTotal,
+      nature,
+      reviewStatus,
+      spendingImpact,
+      cashflowImpact,
     });
 
     if (recurring?.enabled) {
@@ -257,20 +296,31 @@ export async function POST(req: NextRequest) {
           const createdTx = isBaseTransactionDate
             ? tx
             : shouldCreate
-            ? await db.transaction.create({
-                data: {
-                  userId: session.userId,
-                  date: dueDate,
-                  merchantName: merchantName.trim(),
-                  normalizedMerchant: merchantName.trim().replace(/\s+/g, " "),
-                  amountArs: tx.amountArs,
-                  amountUsd: tx.amountUsd,
-                  categoryId: categoryId ?? null,
+            ? await (async () => {
+                const classification = inferTransactionClassification({
                   transactionType: transactionType ?? "DEBIT",
                   source: "RECURRENT",
-                  isInstallment: false,
-                },
-              })
+                  merchantName,
+                });
+                return db.transaction.create({
+                  data: {
+                    userId: session.userId,
+                    date: dueDate,
+                    merchantName: merchantName.trim(),
+                    normalizedMerchant: merchantName.trim().replace(/\s+/g, " "),
+                    amountArs: tx.amountArs,
+                    amountUsd: tx.amountUsd,
+                    categoryId: categoryId ?? null,
+                    transactionType: transactionType ?? "DEBIT",
+                    nature: classification.nature,
+                    reviewStatus: classification.reviewStatus,
+                    spendingImpact: classification.spendingImpact,
+                    cashflowImpact: classification.cashflowImpact,
+                    source: "RECURRENT",
+                    isInstallment: false,
+                  },
+                });
+              })()
             : null;
 
           await db.recurringTransactionOccurrence.create({

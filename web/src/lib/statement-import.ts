@@ -1,8 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { categorizeTransaction } from "@/lib/categorizer";
-import { money, nullableMoney } from "@/lib/money";
+import { money, nullableMoney, toMoneyNumber } from "@/lib/money";
 import { parseDateOnly } from "@/lib/dates";
+import { inferTransactionClassification } from "@/lib/transactions/classification";
 import type { AIParsedStatement, ParsedStatement, ParsedTransaction } from "@/lib/pdf-parser/types";
+
+const PAYMENT_KEYWORDS = ["PAGO", "CANCELACION", "CANCELACIÓN", "DEUDA", "RESUMEN ANTERIOR"];
 
 type PersistOptions = {
   userId?: string | null;
@@ -18,6 +21,17 @@ type PersistOptions = {
   analysisNotes?: string[];
   analysisStructuredJson?: string | null;
 };
+
+function isPaymentDescription(value: string) {
+  const normalized = value.toUpperCase();
+  return PAYMENT_KEYWORDS.some((kw) => normalized.includes(kw));
+}
+
+function previousCalendarMonthRange(date: Date) {
+  const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() - 1, 1, 0, 0, 0, 0));
+  const end = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 0, 23, 59, 59, 999));
+  return { start, end };
+}
 
 export async function persistParsedStatement(
   parsed: ParsedStatement | AIParsedStatement,
@@ -98,6 +112,13 @@ export async function persistParsedStatement(
       const categoryName = categorizeTransaction(transaction.merchant_name);
       const categoryId = categoryMap.get(categoryName) ?? categoryMap.get("Otros");
       const isInstallment = !!(transaction.installment_current && transaction.installment_total);
+      const classification = inferTransactionClassification({
+        transactionType: "DEBIT",
+        source: "IMPORTED",
+        statementId: statement.id,
+        merchantName: transaction.merchant_name,
+        isInstallment,
+      });
 
       await tx.transaction.create({
         data: {
@@ -113,6 +134,11 @@ export async function persistParsedStatement(
           amountArs: money(transaction.amount_ars),
           amountUsd: nullableMoney(transaction.amount_usd),
           cardLastFour: transaction.card_last_four,
+          transactionType: "DEBIT",
+          nature: classification.nature,
+          reviewStatus: classification.reviewStatus,
+          spendingImpact: classification.spendingImpact,
+          cashflowImpact: classification.cashflowImpact,
           isInstallment,
         },
       });
@@ -132,10 +158,27 @@ export async function linkPaymentsToStatement(
   const statement = await prisma.statement.findUniqueOrThrow({
     where: { id: statementId },
     select: {
+      cardId: true,
+      bankName: true,
       card: { select: { lastFour: true } },
       periodStart: true,
       periodEnd: true,
+      balanceSummary: { select: { paymentsApplied: true } },
     },
+  });
+
+  const previousMonth = previousCalendarMonthRange(statement.periodEnd);
+  const previousStatement = await prisma.statement.findFirst({
+    where: {
+      id: { not: statementId },
+      userId,
+      cardId: statement.cardId,
+      bankName: statement.bankName,
+      periodEnd: { gte: previousMonth.start, lte: previousMonth.end },
+      processingStatus: { not: "REJECTED" },
+    },
+    select: { id: true, dueDate: true },
+    orderBy: { periodEnd: "desc" },
   });
 
   // 1. Link orphan DEBIT transactions matching this card within the period
@@ -148,18 +191,22 @@ export async function linkPaymentsToStatement(
       transactionType: "DEBIT",
       deletedAt: null,
     },
-    data: { statementId },
+    data: {
+      statementId,
+      nature: "credit_card_payment",
+      reviewStatus: "excluded_from_spending",
+      spendingImpact: false,
+      cashflowImpact: true,
+    },
   });
 
-  // 2. Deduplicate payment transactions found in the just-imported data
-  if (!parsedTransactions?.length) return;
+  // 2. Payment lines in the current statement usually settle the previous
+  // statement. Reassign them to the immediately previous statement when it exists.
+  let linkedImportedPayment = false;
+  const targetStatementId = previousStatement?.id ?? statementId;
 
-  const paymentKeywords = ["PAGO", "CANCELACION", "CANCELACIÓN", "DEUDA", "RESUMEN ANTERIOR"];
-
-  for (const tx of parsedTransactions) {
-    const isPayment = paymentKeywords.some((kw) =>
-      tx.merchant_name.toUpperCase().includes(kw),
-    );
+  for (const tx of parsedTransactions ?? []) {
+    const isPayment = isPaymentDescription(tx.merchant_name);
     if (!isPayment) continue;
 
     const amount = tx.amount_ars;
@@ -181,6 +228,7 @@ export async function linkPaymentsToStatement(
       where: {
         id: { not: importedTx.id },
         userId,
+        statementId: targetStatementId,
         transactionType: "DEBIT",
         cardLastFour: statement.card.lastFour,
         amountArs: money(amount),
@@ -189,16 +237,74 @@ export async function linkPaymentsToStatement(
       },
       orderBy: { createdAt: "asc" },
     });
-    if (!existingTx) continue;
+    linkedImportedPayment = true;
+
+    if (!existingTx) {
+      await prisma.transaction.update({
+        where: { id: importedTx.id },
+        data: {
+          statementId: targetStatementId,
+          nature: "credit_card_payment",
+          reviewStatus: "excluded_from_spending",
+          spendingImpact: false,
+          cashflowImpact: true,
+        },
+      });
+      continue;
+    }
 
     await prisma.$transaction([
       prisma.transaction.delete({ where: { id: importedTx.id } }),
       prisma.transaction.update({
         where: { id: existingTx.id },
-        data: { statementId },
+        data: {
+          statementId: targetStatementId,
+          nature: "credit_card_payment",
+          reviewStatus: "excluded_from_spending",
+          spendingImpact: false,
+          cashflowImpact: true,
+        },
       }),
     ]);
   }
+
+  if (!previousStatement || linkedImportedPayment) return;
+
+  const paymentsApplied = Math.abs(toMoneyNumber(statement.balanceSummary?.paymentsApplied));
+  if (paymentsApplied <= 0) return;
+
+  const existingSynthetic = await prisma.transaction.findFirst({
+    where: {
+      userId,
+      statementId: previousStatement.id,
+      transactionType: "DEBIT",
+      nature: "credit_card_payment",
+      cardLastFour: statement.card.lastFour,
+      amountArs: money(paymentsApplied),
+      deletedAt: null,
+    },
+  });
+  if (existingSynthetic) return;
+
+  const merchantName = `Pago resumen anterior ${statement.bankName} •••• ${statement.card.lastFour}`;
+  await prisma.transaction.create({
+    data: {
+      statementId: previousStatement.id,
+      userId,
+      date: statement.periodStart,
+      merchantName,
+      normalizedMerchant: merchantName,
+      amountArs: money(paymentsApplied),
+      amountUsd: null,
+      cardLastFour: statement.card.lastFour,
+      transactionType: "DEBIT",
+      nature: "credit_card_payment",
+      reviewStatus: "excluded_from_spending",
+      spendingImpact: false,
+      cashflowImpact: true,
+      source: "IMPORTED",
+    },
+  });
 }
 
 export async function createTransactionsFromStoredAnalysis(
@@ -225,6 +331,13 @@ export async function createTransactionsFromStoredAnalysis(
       const categoryName = categorizeTransaction(transaction.merchant_name);
       const categoryId = categoryMap.get(categoryName) ?? categoryMap.get("Otros");
       const isInstallment = !!(transaction.installment_current && transaction.installment_total);
+      const classification = inferTransactionClassification({
+        transactionType: "DEBIT",
+        source: "IMPORTED",
+        statementId,
+        merchantName: transaction.merchant_name,
+        isInstallment,
+      });
 
       await tx.transaction.create({
         data: {
@@ -240,6 +353,11 @@ export async function createTransactionsFromStoredAnalysis(
           amountArs: money(transaction.amount_ars),
           amountUsd: nullableMoney(transaction.amount_usd),
           cardLastFour: transaction.card_last_four,
+          transactionType: "DEBIT",
+          nature: classification.nature,
+          reviewStatus: classification.reviewStatus,
+          spendingImpact: classification.spendingImpact,
+          cashflowImpact: classification.cashflowImpact,
           isInstallment,
         },
       });

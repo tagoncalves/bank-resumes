@@ -16,7 +16,7 @@ export default function IncomeExpenseTrend({ data }: { data: MonthData[] }) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-medium text-foreground">Ingresos vs egresos</CardTitle>
+          <CardTitle className="text-sm font-medium text-foreground">Ingresos vs gastos computables</CardTitle>
         </CardHeader>
         <CardContent className="flex h-64 items-center justify-center text-sm text-muted">
           Sin datos
@@ -33,7 +33,7 @@ export default function IncomeExpenseTrend({ data }: { data: MonthData[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm font-medium text-foreground">Ingresos vs egresos</CardTitle>
+        <CardTitle className="text-sm font-medium text-foreground">Ingresos vs gastos computables</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={280}>
@@ -42,10 +42,10 @@ export default function IncomeExpenseTrend({ data }: { data: MonthData[] }) {
             <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--color-text-muted)" }} />
             <YAxis tickFormatter={(v) => compactARS(v)} tick={{ fontSize: 11, fill: "var(--color-text-muted)" }} width={60} />
             <Tooltip
-              formatter={(value, name) => [formatARS(Number(value)), name === "income" ? "Ingresos" : "Egresos"]}
+              formatter={(value, name) => [formatARS(Number(value)), name === "income" ? "Ingresos" : "Gastos computables"]}
               contentStyle={{ fontSize: 12, borderColor: "var(--color-border)", background: "var(--color-surface)", color: "var(--color-text)" }}
             />
-            <Legend formatter={(value) => <span className="text-xs text-muted">{value === "income" ? "Ingresos" : "Egresos"}</span>} />
+            <Legend formatter={(value) => <span className="text-xs text-muted">{value === "income" ? "Ingresos" : "Gastos computables"}</span>} />
             <Bar dataKey="income" fill="var(--color-income)" radius={[3, 3, 0, 0]} />
             <Bar dataKey="expenses" fill="var(--color-expense)" radius={[3, 3, 0, 0]} />
           </BarChart>

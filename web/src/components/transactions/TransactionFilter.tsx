@@ -28,6 +28,25 @@ const TYPES = [
   { label: "Ingresos", value: "CREDIT" },
 ];
 
+const NATURES = [
+  { label: "Gasto", value: "expense" },
+  { label: "Cuota", value: "installment" },
+  { label: "Suscripción", value: "subscription" },
+  { label: "Pago tarjeta", value: "credit_card_payment" },
+  { label: "Transferencia", value: "transfer" },
+  { label: "Devolución", value: "refund" },
+  { label: "Ingreso", value: "income" },
+  { label: "Ignorado", value: "ignored" },
+];
+
+const REVIEW_STATUSES = [
+  { label: "A revisar", value: "needs_review" },
+  { label: "Duplicado", value: "duplicate_candidate" },
+  { label: "Excluido", value: "excluded_from_spending" },
+  { label: "Auto", value: "auto_categorized" },
+  { label: "Confirmado", value: "confirmed" },
+];
+
 export function TransactionFilter() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -41,9 +60,13 @@ export function TransactionFilter() {
   const categoryIdsStr = searchParams.get("categoryId") ?? "";
   const originStr = searchParams.get("origin") ?? "";
   const typeStr = searchParams.get("type") ?? "";
+  const natureStr = searchParams.get("nature") ?? "";
+  const reviewStatusStr = searchParams.get("reviewStatus") ?? "";
   const selectedCatIds = categoryIdsStr ? categoryIdsStr.split(",").filter(Boolean) : [];
   const selectedOrigins = originStr ? originStr.split(",").filter(Boolean) : [];
   const selectedTypes = typeStr ? typeStr.split(",").filter(Boolean) : [];
+  const selectedNatures = natureStr ? natureStr.split(",").filter(Boolean) : [];
+  const selectedReviewStatuses = reviewStatusStr ? reviewStatusStr.split(",").filter(Boolean) : [];
 
   const activeMonths = currentMonth ? undefined : (currentMonths ?? 6);
   const activeMonth = currentMonth;
@@ -150,6 +173,17 @@ export function TransactionFilter() {
       ? selectedTypes.filter((item) => item !== type)
       : [...selectedTypes, type];
     router.push(buildUrl(activeMonth, activeMonths, selectedCatIds, selectedOrigins, newTypes));
+  }
+
+  function toggleListParam(paramName: string, selectedValues: string[], value: string) {
+    const nextValues = selectedValues.includes(value)
+      ? selectedValues.filter((item) => item !== value)
+      : [...selectedValues, value];
+    const sp = new URLSearchParams(searchParams.toString());
+    if (nextValues.length) sp.set(paramName, nextValues.join(","));
+    else sp.delete(paramName);
+    const query = sp.toString();
+    router.push(query ? `/transactions?${query}` : "/transactions");
   }
 
   const isCurrentMonth =
@@ -323,6 +357,42 @@ export function TransactionFilter() {
             }`}
           >
             {type.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="h-4 w-px bg-zinc-200" />
+
+      <div className="flex flex-wrap gap-1">
+        {NATURES.map((nature) => (
+          <button
+            key={nature.value}
+            onClick={() => toggleListParam("nature", selectedNatures, nature.value)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              selectedNatures.includes(nature.value)
+                ? "bg-slate-800 text-white"
+                : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+            }`}
+          >
+            {nature.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="h-4 w-px bg-zinc-200" />
+
+      <div className="flex flex-wrap gap-1">
+        {REVIEW_STATUSES.map((status) => (
+          <button
+            key={status.value}
+            onClick={() => toggleListParam("reviewStatus", selectedReviewStatuses, status.value)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              selectedReviewStatuses.includes(status.value)
+                ? "bg-amber-100 text-amber-800"
+                : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+            }`}
+          >
+            {status.label}
           </button>
         ))}
       </div>

@@ -17,7 +17,9 @@ export async function GET() {
     by: ["merchantName", "amountArs", "amountUsd", "cardLastFour"],
     where: {
       userId: session.userId,
+      transactionType: "DEBIT",
       isInstallment: true,
+      spendingImpact: true,
       deletedAt: null,
       installmentTotal: { not: null },
     },
