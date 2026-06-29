@@ -19,7 +19,7 @@ function addDays(date: Date, days: number) {
 }
 
 export async function ensureDefaultNotificationSetup() {
-  const channel = await prisma.notificationChannel.upsert({
+  let channel = await prisma.notificationChannel.upsert({
     where: { name: "EMAIL_DEFAULT" },
     update: { type: "EMAIL", isDefault: true },
     create: {
@@ -34,6 +34,28 @@ export async function ensureDefaultNotificationSetup() {
       }),
     },
   });
+
+  const config = parseChannelConfig(channel.configJson);
+  const nextConfig = { ...config };
+  if (process.env.EMAIL_PROVIDER && nextConfig.provider !== process.env.EMAIL_PROVIDER) {
+    nextConfig.provider = process.env.EMAIL_PROVIDER;
+  }
+  if (process.env.EMAIL_FROM && (!nextConfig.from || nextConfig.from.includes("sandbox"))) {
+    nextConfig.from = process.env.EMAIL_FROM;
+  }
+  if (!nextConfig.defaultRecipient && process.env.NOTIFICATION_DEFAULT_EMAIL) {
+    nextConfig.defaultRecipient = process.env.NOTIFICATION_DEFAULT_EMAIL;
+  }
+  if (nextConfig.provider === "mailgun" && !nextConfig.apiKeyEnv) {
+    nextConfig.apiKeyEnv = "MAILGUN_API_KEY";
+  }
+
+  if (JSON.stringify(config) !== JSON.stringify(nextConfig)) {
+    channel = await prisma.notificationChannel.update({
+      where: { id: channel.id },
+      data: { configJson: JSON.stringify(nextConfig) },
+    });
+  }
 
   const templates = defaultTemplates();
   for (const [eventType, template] of Object.entries(templates)) {

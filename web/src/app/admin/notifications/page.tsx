@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { Bell, Mail, Play, Send } from "lucide-react";
+import { Bell, Mail, Play, Send, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useToast } from "@/components/ui/toast-provider";
 
 const EmailTemplateEditor = dynamic(
   () => import("@/components/admin/notifications/email-template-editor").then((mod) => mod.EmailTemplateEditor),
@@ -21,6 +22,7 @@ type Scope = "day" | "week" | "month";
 const SCOPE_LABELS: Record<Scope, string> = { day: "Día", week: "Semana", month: "Mes" };
 
 export default function NotificationsAdminPage() {
+  const { showToast } = useToast();
   const [channels, setChannels] = useState<ChannelItem[]>([]);
   const [templates, setTemplates] = useState<TemplateItem[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
@@ -32,7 +34,12 @@ export default function NotificationsAdminPage() {
   const [editingTemplate, setEditingTemplate] = useState<TemplateItem | null>(null);
   const [templateEditMode, setTemplateEditMode] = useState<"visual" | "code">("visual");
   const [editingChannel, setEditingChannel] = useState<ChannelItem | null>(null);
-  const [channelConfig, setChannelConfig] = useState({ provider: "console", from: "", defaultRecipient: "", apiKeyEnv: "RESEND_API_KEY" });
+  const [channelConfig, setChannelConfig] = useState({ provider: "mailgun", from: "", defaultRecipient: "", apiKeyEnv: "MAILGUN_API_KEY" });
+  const [testTemplate, setTestTemplate] = useState<TemplateItem | null>(null);
+  const [testRecipient, setTestRecipient] = useState("");
+  const [testingTemplateId, setTestingTemplateId] = useState<string | null>(null);
+  const [deletingDelivery, setDeletingDelivery] = useState<DeliveryItem | null>(null);
+  const [deletingDeliveryId, setDeletingDeliveryId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function parseChannelConfig(channel: ChannelItem) {
@@ -95,10 +102,10 @@ export default function NotificationsAdminPage() {
     const config = parseChannelConfig(channel);
     setEditingChannel(channel);
     setChannelConfig({
-      provider: config.provider ?? "console",
+      provider: config.provider ?? "mailgun",
       from: config.from ?? "",
       defaultRecipient: config.defaultRecipient ?? "",
-      apiKeyEnv: config.apiKeyEnv ?? "RESEND_API_KEY",
+      apiKeyEnv: config.apiKeyEnv ?? "MAILGUN_API_KEY",
     });
   }
 
@@ -122,6 +129,78 @@ export default function NotificationsAdminPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "resend", deliveryId }),
     });
+    load();
+  }
+
+  function openTemplateTest(template: TemplateItem) {
+    setTestTemplate(template);
+    setTestRecipient("");
+  }
+
+  async function sendTemplateTest() {
+    if (!testTemplate) return;
+    const template = testTemplate;
+    setTestingTemplateId(template.id);
+    const res = await fetch("/api/admin/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "testTemplate",
+        templateId: template.id,
+        recipient: testRecipient.trim() || undefined,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      showToast({
+        tone: "error",
+        title: "Falló el envío de prueba",
+        description: data.error ?? "No se pudo enviar la prueba",
+      });
+      setTestingTemplateId(null);
+      load();
+      return;
+    }
+
+    showToast({
+      tone: "success",
+      title: "Prueba enviada",
+      description: `Template ${template.eventType} enviado a ${data.recipient}`,
+    });
+    setTestTemplate(null);
+    setTestRecipient("");
+    setTestingTemplateId(null);
+    load();
+  }
+
+  async function confirmDeleteDelivery() {
+    if (!deletingDelivery) return;
+    setDeletingDeliveryId(deletingDelivery.id);
+    const res = await fetch("/api/admin/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "deleteDelivery", deliveryId: deletingDelivery.id }),
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      showToast({
+        tone: "error",
+        title: "No se pudo eliminar el envío",
+        description: data.error ?? "El envío no pudo eliminarse",
+      });
+      setDeletingDeliveryId(null);
+      return;
+    }
+
+    showToast({
+      tone: "success",
+      title: "Envío eliminado",
+      description: deletingDelivery.renderedSubject ?? deletingDelivery.recipient,
+    });
+    setDeletingDelivery(null);
+    setDeletingDeliveryId(null);
     load();
   }
 
@@ -165,10 +244,10 @@ export default function NotificationsAdminPage() {
               </div>
               </div>
               <div className="mt-2 grid gap-2 text-xs text-zinc-500 sm:grid-cols-2">
-                <p>Proveedor: <span className="font-mono text-zinc-700">{config.provider || "console"}</span></p>
+                <p>Proveedor: <span className="font-mono text-zinc-700">{config.provider || "mailgun"}</span></p>
                 <p>Remitente: <span className="font-mono text-zinc-700">{config.from || "No configurado"}</span></p>
                 <p>Destinatario default: <span className="font-mono text-zinc-700">{config.defaultRecipient || "Usuario / env"}</span></p>
-                <p>API key env: <span className="font-mono text-zinc-700">{config.apiKeyEnv || "RESEND_API_KEY"}</span></p>
+                <p>API key env: <span className="font-mono text-zinc-700">{config.apiKeyEnv || "MAILGUN_API_KEY"}</span></p>
               </div>
             </div>
             );
@@ -187,7 +266,17 @@ export default function NotificationsAdminPage() {
                   <p className="font-medium text-zinc-800"><Bell className="mr-1 inline h-4 w-4" />{t.eventType}</p>
                   <p className="text-xs text-zinc-500">{t.channel.name} · {t.bodyFormat}</p>
                 </div>
-                <button onClick={() => { setEditingTemplate(t); setTemplateEditMode(t.bodyFormat === "HTML" ? "visual" : "code"); }} className="text-indigo-600 hover:underline">Editar</button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => openTemplateTest(t)}
+                    disabled={testingTemplateId === t.id}
+                    className="inline-flex items-center gap-1 rounded border border-indigo-100 px-2.5 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50 disabled:opacity-50"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    {testingTemplateId === t.id ? "Enviando..." : "Enviar prueba"}
+                  </button>
+                  <button onClick={() => { setEditingTemplate(t); setTemplateEditMode(t.bodyFormat === "HTML" ? "visual" : "code"); }} className="text-indigo-600 hover:underline">Editar</button>
+                </div>
               </div>
               <p className="text-xs text-zinc-500">{t.subject}</p>
             </div>
@@ -201,6 +290,7 @@ export default function NotificationsAdminPage() {
         onScopeChange={setPendingScope}
         deliveries={pendingDeliveries}
         empty="No hay envíos pendientes para el período seleccionado."
+        onDelete={setDeletingDelivery}
       />
 
       <DeliveryList
@@ -273,7 +363,7 @@ export default function NotificationsAdminPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
           <div className="w-full max-w-lg rounded bg-white p-5 shadow-xl">
             <h2 className="mb-1 text-sm font-semibold">Configurar {editingChannel.name}</h2>
-            <p className="mb-4 text-xs text-zinc-500">El envío se hace server-side. No usa mailto. En desarrollo podés usar consola; para envío real configurá Resend y una API key en variables de entorno.</p>
+            <p className="mb-4 text-xs text-zinc-500">El envío se hace server-side. No usa mailto. En desarrollo podés usar consola; para envío real configurá Mailgun y una API key en variables de entorno.</p>
             <label className="mb-1 block text-xs text-zinc-500">Proveedor</label>
             <select
               className="mb-3 w-full rounded border px-3 py-2 text-sm"
@@ -281,7 +371,7 @@ export default function NotificationsAdminPage() {
               onChange={(e) => setChannelConfig((c) => ({ ...c, provider: e.target.value }))}
             >
               <option value="console">Consola (desarrollo, no envía mail real)</option>
-              <option value="resend">Resend</option>
+              <option value="mailgun">Mailgun</option>
             </select>
             <label className="mb-1 block text-xs text-zinc-500">Remitente</label>
             <input
@@ -297,14 +387,14 @@ export default function NotificationsAdminPage() {
               onChange={(e) => setChannelConfig((c) => ({ ...c, defaultRecipient: e.target.value }))}
               placeholder="admin@example.com o +549..."
             />
-            {channelConfig.provider === "resend" && (
+            {channelConfig.provider === "mailgun" && (
               <>
                 <label className="mb-1 mt-3 block text-xs text-zinc-500">Variable de entorno API key</label>
                 <input
                   className="w-full rounded border px-3 py-2 text-sm font-mono"
                   value={channelConfig.apiKeyEnv}
                   onChange={(e) => setChannelConfig((c) => ({ ...c, apiKeyEnv: e.target.value }))}
-                  placeholder="RESEND_API_KEY"
+                  placeholder="MAILGUN_API_KEY"
                 />
                 <p className="mt-1 text-xs text-zinc-400">Por seguridad no se guarda el secreto en la base; agregá esa variable en `.env`.</p>
               </>
@@ -312,6 +402,75 @@ export default function NotificationsAdminPage() {
             <div className="mt-4 flex justify-end gap-2">
               <button onClick={() => setEditingChannel(null)} className="rounded px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100">Cancelar</button>
               <button onClick={saveChannel} className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700">Guardar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {testTemplate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-lg rounded bg-white p-5 shadow-xl">
+            <h2 className="mb-1 text-sm font-semibold">Enviar prueba</h2>
+            <p className="mb-4 text-xs text-zinc-500">
+              Se renderizará el template <span className="font-mono text-zinc-700">{testTemplate.eventType}</span> con datos de muestra y se enviará por el carrier configurado.
+            </p>
+            <label className="mb-1 block text-xs text-zinc-500">Destinatario</label>
+            <input
+              className="w-full rounded border px-3 py-2 text-sm"
+              type="email"
+              value={testRecipient}
+              onChange={(e) => setTestRecipient(e.target.value)}
+              placeholder="Dejá vacío para usar default/admin"
+              autoFocus
+            />
+            <p className="mt-2 text-xs text-zinc-400">Si no indicás destinatario, se usará el destinatario default del canal, `NOTIFICATION_DEFAULT_EMAIL`, o el email del admin actual.</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => { setTestTemplate(null); setTestRecipient(""); }}
+                disabled={testingTemplateId === testTemplate.id}
+                className="rounded px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={sendTemplateTest}
+                disabled={testingTemplateId === testTemplate.id}
+                className="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
+              >
+                <Send className="h-4 w-4" />
+                {testingTemplateId === testTemplate.id ? "Enviando..." : "Enviar prueba"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deletingDelivery && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-md rounded bg-white p-5 shadow-xl">
+            <h2 className="mb-1 text-sm font-semibold">Eliminar envío pendiente</h2>
+            <p className="text-sm text-zinc-600">El envío se eliminará de la cola y no volverá a procesarse automáticamente.</p>
+            <div className="mt-3 rounded border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-500">
+              <p><span className="font-medium text-zinc-700">Para:</span> {deletingDelivery.recipient}</p>
+              <p><span className="font-medium text-zinc-700">Asunto:</span> {deletingDelivery.renderedSubject ?? "Sin asunto"}</p>
+              <p><span className="font-medium text-zinc-700">Estado:</span> {deletingDelivery.status}</p>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setDeletingDelivery(null)}
+                disabled={deletingDeliveryId === deletingDelivery.id}
+                className="rounded px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDeleteDelivery}
+                disabled={deletingDeliveryId === deletingDelivery.id}
+                className="inline-flex items-center gap-1.5 rounded bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                <Trash2 className="h-4 w-4" />
+                {deletingDeliveryId === deletingDelivery.id ? "Eliminando..." : "Eliminar"}
+              </button>
             </div>
           </div>
         </div>
@@ -327,6 +486,7 @@ function DeliveryList({
   deliveries,
   empty,
   onResend,
+  onDelete,
 }: {
   title: string;
   scope: Scope;
@@ -334,6 +494,7 @@ function DeliveryList({
   deliveries: DeliveryItem[];
   empty: string;
   onResend?: (deliveryId: string) => void;
+  onDelete?: (delivery: DeliveryItem) => void;
 }) {
   return (
     <Card>
@@ -377,6 +538,16 @@ function DeliveryList({
                     className="rounded-full border border-indigo-100 p-1 text-indigo-600 hover:bg-indigo-50"
                   >
                     <Send className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                {onDelete && ["PENDING", "RETRYING", "FAILED"].includes(d.status) && (
+                  <button
+                    type="button"
+                    onClick={() => onDelete(d)}
+                    title="Eliminar"
+                    className="rounded-full border border-red-100 p-1 text-red-600 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 )}
               </div>

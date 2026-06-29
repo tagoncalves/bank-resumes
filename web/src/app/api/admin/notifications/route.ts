@@ -3,14 +3,51 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin";
 import { ensureDefaultNotificationSetup, processNotifications } from "@/lib/notifications/engine";
 import { EmailCarrier } from "@/lib/notifications/carriers/email";
+import { formatMoney, renderTemplate } from "@/lib/notifications/template";
 
 function parseChannelConfig(configJson?: string | null) {
-  if (!configJson) return {} as { provider?: string; from?: string; defaultRecipient?: string; apiKeyEnv?: string };
+  let config = {} as { provider?: string; from?: string; defaultRecipient?: string; apiKeyEnv?: string };
   try {
-    return JSON.parse(configJson) as { provider?: string; from?: string; defaultRecipient?: string; apiKeyEnv?: string };
+    config = configJson ? JSON.parse(configJson) as { provider?: string; from?: string; defaultRecipient?: string; apiKeyEnv?: string } : config;
   } catch {
-    return {} as { provider?: string; from?: string; defaultRecipient?: string; apiKeyEnv?: string };
+    config = {};
   }
+
+  if (process.env.EMAIL_PROVIDER) config.provider = process.env.EMAIL_PROVIDER;
+  if (process.env.EMAIL_FROM && (!config.from || config.from.includes("sandbox"))) {
+    config.from = process.env.EMAIL_FROM;
+  }
+  if (config.provider === "mailgun" && !config.apiKeyEnv) config.apiKeyEnv = "MAILGUN_API_KEY";
+
+  return config;
+}
+
+function testTemplatePayload() {
+  const dueDate = new Date();
+  dueDate.setDate(dueDate.getDate() + 3);
+
+  return {
+    merchantName: "Supermercado de prueba",
+    amount: formatMoney(12345.67, "ARS"),
+    currency: "ARS",
+    dueDate: dueDate.toLocaleDateString("es-AR"),
+    categoryName: "Gastos de prueba",
+    confirmUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/admin/notifications?test=confirm`,
+    rejectUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/admin/notifications?test=reject`,
+  };
+}
+
+function recipientForTest(
+  requestedRecipient: unknown,
+  config: { defaultRecipient?: string },
+  user: { username: string; email: string | null } | null,
+) {
+  if (typeof requestedRecipient === "string" && requestedRecipient.trim()) return requestedRecipient.trim();
+  if (config.defaultRecipient?.trim()) return config.defaultRecipient.trim();
+  if (process.env.NOTIFICATION_DEFAULT_EMAIL) return process.env.NOTIFICATION_DEFAULT_EMAIL;
+  if (user?.email) return user.email;
+  if (user?.username.includes("@")) return user.username;
+  return null;
 }
 
 function rangeFor(scope: string | null) {
@@ -79,7 +116,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const { deny } = await requireAdmin();
+  const { session, deny } = await requireAdmin();
   if (deny) return deny;
 
   const body = await request.json().catch(() => ({}));
@@ -142,6 +179,100 @@ export async function POST(request: Request) {
         },
       });
       return NextResponse.json(failed, { status: 500 });
+    }
+  }
+
+  if (body.action === "deleteDelivery" && body.deliveryId) {
+    const delivery = await prisma.notificationDelivery.findUnique({
+      where: { id: body.deliveryId },
+      select: { id: true, eventId: true, status: true },
+    });
+    if (!delivery) return NextResponse.json({ error: "Envío no encontrado" }, { status: 404 });
+    if (!["PENDING", "RETRYING", "FAILED"].includes(delivery.status)) {
+      return NextResponse.json({ error: "Solo se pueden eliminar envíos pendientes, en reintento o fallidos" }, { status: 400 });
+    }
+
+    await prisma.notificationDelivery.delete({ where: { id: delivery.id } });
+    const remainingDeliveries = await prisma.notificationDelivery.count({ where: { eventId: delivery.eventId } });
+    if (remainingDeliveries === 0) {
+      await prisma.notificationEvent.update({ where: { id: delivery.eventId }, data: { status: "CANCELLED" } });
+    }
+
+    return NextResponse.json({ ok: true });
+  }
+
+  if (body.action === "testTemplate" && body.templateId) {
+    const template = await prisma.notificationTemplate.findUnique({
+      where: { id: body.templateId },
+      include: { channel: true },
+    });
+    if (!template) return NextResponse.json({ error: "Template no encontrado" }, { status: 404 });
+    if (template.channel.type !== "EMAIL") {
+      return NextResponse.json({ error: "Prueba implementada solo para email en el MVP" }, { status: 400 });
+    }
+
+    const [user, config] = await Promise.all([
+      prisma.user.findUnique({ where: { id: session.userId }, select: { username: true, email: true } }),
+      Promise.resolve(parseChannelConfig(template.channel.configJson)),
+    ]);
+    const recipient = recipientForTest(body.recipient, config, user);
+    if (!recipient) {
+      return NextResponse.json(
+        { error: "Configurá un destinatario default o pasá un email para enviar la prueba" },
+        { status: 400 },
+      );
+    }
+
+    const payload = testTemplatePayload();
+    const event = await prisma.notificationEvent.create({
+      data: {
+        userId: session.userId,
+        eventType: `TEST_${template.eventType}`,
+        payloadJson: JSON.stringify(payload),
+      },
+    });
+    const delivery = await prisma.notificationDelivery.create({
+      data: {
+        eventId: event.id,
+        channelId: template.channelId,
+        recipient,
+        renderedSubject: template.subject ? `[Prueba] ${renderTemplate(template.subject, payload)}` : "[Prueba] Notificación Bank Resumes",
+        renderedBody: renderTemplate(template.body, payload),
+        status: "PENDING",
+      },
+    });
+
+    try {
+      const result = await new EmailCarrier().send({
+        recipient,
+        from: config.from,
+        provider: config.provider,
+        apiKeyEnv: config.apiKeyEnv,
+        subject: delivery.renderedSubject,
+        body: delivery.renderedBody,
+        bodyFormat: template.bodyFormat,
+      });
+
+      const updated = await prisma.notificationDelivery.update({
+        where: { id: delivery.id },
+        data: {
+          status: "SENT",
+          sentAt: new Date(),
+          providerMessageId: result.providerMessageId ?? null,
+          attemptCount: 1,
+          lastError: null,
+        },
+      });
+      await prisma.notificationEvent.update({ where: { id: event.id }, data: { status: "SENT" } });
+      return NextResponse.json(updated);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error al enviar prueba";
+      const failed = await prisma.notificationDelivery.update({
+        where: { id: delivery.id },
+        data: { status: "FAILED", attemptCount: 1, lastError: message },
+      });
+      await prisma.notificationEvent.update({ where: { id: event.id }, data: { status: "FAILED" } });
+      return NextResponse.json({ ...failed, error: message }, { status: 500 });
     }
   }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { enforceRateLimit, getClientIp } from "@/lib/rate-limit";
+import { sendEmail } from "@/lib/email/mailgun";
 import bcrypt from "bcryptjs";
 import { randomInt } from "crypto";
 
@@ -16,19 +17,6 @@ function normalizeEmail(email: string) {
 
 function generateCode() {
   return String(randomInt(100000, 1000000));
-}
-
-function buildMailto(email: string, code: string) {
-  const subject = "Clave de validacion de Nerum Finance";
-  const body = [
-    "Usa esta clave para validar tu cuenta en Nerum Finance:",
-    "",
-    code,
-    "",
-    `La clave vence en ${CODE_TTL_MINUTES} minutos.`,
-  ].join("\n");
-
-  return `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -123,11 +111,35 @@ export async function POST(req: NextRequest) {
         select: { username: true, email: true },
       });
 
+  try {
+    await sendEmail({
+      to: normalizedEmail,
+      subject: "Clave de validacion de Nerum Finance",
+      text: [
+        "Usa esta clave para validar tu cuenta en Nerum Finance:",
+        "",
+        code,
+        "",
+        `La clave vence en ${CODE_TTL_MINUTES} minutos.`,
+      ].join("\n"),
+      html: [
+        "<p>Usa esta clave para validar tu cuenta en Nerum Finance:</p>",
+        `<p style=\"font-size:24px;font-weight:700;letter-spacing:0.2em\">${code}</p>`,
+        `<p>La clave vence en ${CODE_TTL_MINUTES} minutos.</p>`,
+      ].join(""),
+    });
+  } catch (error) {
+    console.error("[auth:register] email verification send failed", error);
+    return NextResponse.json(
+      { error: "No pudimos enviar el email de validación. Probá nuevamente en unos minutos." },
+      { status: 502 },
+    );
+  }
+
   return NextResponse.json({
     ok: true,
     username: user.username,
     email: user.email,
-    mailtoUrl: buildMailto(normalizedEmail, code),
-    message: "Abrí el correo generado y usá la clave para validar la cuenta.",
+    message: "Te enviamos una clave por email para validar la cuenta.",
   }, { status: existing ? 200 : 201 });
 }

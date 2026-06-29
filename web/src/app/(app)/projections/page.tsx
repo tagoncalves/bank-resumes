@@ -34,6 +34,13 @@ interface CashFlowPoint {
 
 interface CashFlowData {
   projection: CashFlowPoint[];
+  meta?: {
+    mode: string;
+    startsAtMonth: string | null;
+    endsAtMonth: string | null;
+    months: number;
+    lookbackMonths: number;
+  };
   breakdown: {
     recurringIncome: number;
     recurringExpense: number;
@@ -41,7 +48,14 @@ interface CashFlowData {
     subscriptionDetails: Array<{ merchant: string; monthlyAvg: number }>;
     variableIncome: number;
     variableExpense: number;
+    baseMonthlyExpense: number;
+    maxMonthlyProjectedExpense: number;
     incomeMonthsCount: number;
+    expenseMonthsCount: number;
+    recurringIncomeRulesCount: number;
+    recurringExpenseRulesCount: number;
+    variableIncomeConfidence: "LOW" | "MEDIUM" | "HIGH";
+    variableExpenseConfidence: "LOW" | "MEDIUM" | "HIGH";
   };
   pendingInstallments: {
     totalAmount: number;
@@ -92,15 +106,14 @@ export default function ProjectionsPage() {
     );
   }
 
-  const totalPendingInstallments = installments.reduce(
+  const totalPendingInstallments = Math.round(installments.reduce(
     (s, r) => s + r.amountArs * r.remaining,
     0,
-  );
+  ));
 
-  const totalMonthlyExpense =
-    (cashflow?.breakdown.recurringExpense ?? 0) +
-    (cashflow?.breakdown.subscriptionExpense ?? 0) +
-    (cashflow?.breakdown.variableExpense ?? 0);
+  const baseMonthlyExpense = cashflow?.breakdown.baseMonthlyExpense ?? 0;
+  const maxMonthlyProjectedExpense = cashflow?.breakdown.maxMonthlyProjectedExpense ?? baseMonthlyExpense;
+  const projectionRows = cashflow ? [...cashflow.projection].sort((a, b) => a.month.localeCompare(b.month)) : [];
 
   return (
     <div className="space-y-6">
@@ -111,23 +124,41 @@ export default function ProjectionsPage() {
         <div className="responsive-grid-compact">
           <Card className="responsive-card overflow-hidden">
             <CardContent className="p-4">
-              <p className="fluid-label text-zinc-500">Ingresos recurrentes</p>
+              <p className="fluid-label text-zinc-500">Ingresos fijos recurrentes</p>
               <p className="fluid-money-small mt-1 font-mono font-semibold text-emerald-600 tabular-nums">
                 {formatARS(cashflow.breakdown.recurringIncome)}
               </p>
-              {cashflow.breakdown.variableIncome > 0 && (
-                <p className="text-[10px] text-zinc-400">
-                  +{formatARS(cashflow.breakdown.variableIncome)} variable (
-                  {cashflow.breakdown.incomeMonthsCount} meses)
-                </p>
-              )}
+              <p className="text-[10px] text-zinc-400">
+                {cashflow.breakdown.recurringIncomeRulesCount > 0
+                  ? `${cashflow.breakdown.recurringIncomeRulesCount} reglas recurrentes activas`
+                  : "Sin reglas recurrentes activas"}
+              </p>
             </CardContent>
           </Card>
           <Card className="responsive-card overflow-hidden">
             <CardContent className="p-4">
-              <p className="fluid-label text-zinc-500">Gastos recurrentes</p>
+              <p className="fluid-label text-zinc-500">Ingreso variable mensual estimado</p>
+              <p className="fluid-money-small mt-1 font-mono font-semibold text-emerald-600 tabular-nums">
+                {formatARS(cashflow.breakdown.variableIncome)}
+              </p>
+              <p className="text-[10px] text-zinc-400">
+                Promedio calculado con {cashflow.breakdown.incomeMonthsCount} de los últimos {cashflow.meta?.lookbackMonths ?? 6} meses disponibles
+              </p>
+              <p className={`text-[10px] font-medium ${confidenceClass(cashflow.breakdown.variableIncomeConfidence)}`}>
+                Confianza {confidenceLabel(cashflow.breakdown.variableIncomeConfidence)}
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="responsive-card overflow-hidden">
+            <CardContent className="p-4">
+              <p className="fluid-label text-zinc-500">Gastos fijos recurrentes</p>
               <p className="fluid-money-small mt-1 font-mono font-semibold text-red-600 tabular-nums">
                 {formatARS(cashflow.breakdown.recurringExpense)}
+              </p>
+              <p className="text-[10px] text-zinc-400">
+                {cashflow.breakdown.recurringExpenseRulesCount > 0
+                  ? `${cashflow.breakdown.recurringExpenseRulesCount} reglas recurrentes activas`
+                  : "Sin reglas recurrentes activas"}
               </p>
               {cashflow.breakdown.subscriptionExpense > 0 && (
                 <p className="text-[10px] text-zinc-400">
@@ -138,18 +169,34 @@ export default function ProjectionsPage() {
           </Card>
           <Card className="responsive-card overflow-hidden">
             <CardContent className="p-4">
-              <p className="fluid-label text-zinc-500">Gasto variable estimado</p>
+              <p className="fluid-label text-zinc-500">Gastos variables estimados</p>
               <p className="fluid-money-small mt-1 font-mono font-semibold text-red-600 tabular-nums">
                 {formatARS(cashflow.breakdown.variableExpense)}
+              </p>
+              <p className="text-[10px] text-zinc-400">
+                Promedio calculado con {cashflow.breakdown.expenseMonthsCount} de los últimos {cashflow.meta?.lookbackMonths ?? 6} meses disponibles
+              </p>
+              <p className={`text-[10px] font-medium ${confidenceClass(cashflow.breakdown.variableExpenseConfidence)}`}>
+                Confianza {confidenceLabel(cashflow.breakdown.variableExpenseConfidence)}
               </p>
             </CardContent>
           </Card>
           <Card className="responsive-card overflow-hidden">
             <CardContent className="p-4">
-              <p className="fluid-label text-zinc-500">Cuotas pendientes</p>
+              <p className="fluid-label text-zinc-500">Cuotas futuras pendientes</p>
               <p className="fluid-money-small mt-1 font-mono font-semibold text-red-600 tabular-nums">
-                {formatARS(totalPendingInstallments)}
+                {formatARS(cashflow.pendingInstallments.totalAmount)}
               </p>
+              <p className="text-[10px] text-zinc-400">Solo cuotas con fecha efectiva futura</p>
+            </CardContent>
+          </Card>
+          <Card className="responsive-card overflow-hidden">
+            <CardContent className="p-4">
+              <p className="fluid-label text-zinc-500">Gasto mensual base, sin cuotas</p>
+              <p className="fluid-money-small mt-1 font-mono font-semibold text-red-600 tabular-nums">
+                {formatARS(baseMonthlyExpense)}
+              </p>
+              <p className="text-[10px] text-zinc-400">Recurrentes + suscripciones + variable estimado</p>
             </CardContent>
           </Card>
         </div>
@@ -188,35 +235,39 @@ export default function ProjectionsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {cashflow && cashflow.projection.length > 0 ? (
+          {cashflow && projectionRows.length > 0 ? (
             <div className="responsive-scroll">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-100 text-xs text-zinc-500">
                     <th className="px-3 py-2 text-left font-medium">Mes</th>
-                    <th className="px-3 py-2 text-right font-medium">Ingresos</th>
-                    <th className="px-3 py-2 text-right font-medium">Gasto recurrente</th>
-                    <th className="px-3 py-2 text-right font-medium text-income">Suscripciones</th>
-                    <th className="px-3 py-2 text-right font-medium text-red-500">Cuotas</th>
-                    <th className="px-3 py-2 text-right font-medium">Gasto variable</th>
+                    <th className="px-3 py-2 text-right font-medium">Ingresos fijos</th>
+                    <th className="px-3 py-2 text-right font-medium">Ingreso variable mensual estimado</th>
+                    <th className="px-3 py-2 text-right font-medium">Gasto fijo</th>
+                    <th className="px-3 py-2 text-right font-medium text-red-500">Suscripciones</th>
+                    <th className="px-3 py-2 text-right font-medium text-red-500">Cuotas futuras</th>
+                    <th className="px-3 py-2 text-right font-medium">Gasto variable estimado</th>
                     <th className="px-3 py-2 text-right font-medium">Total gastos</th>
                     <th className="px-3 py-2 text-right font-medium">Neto</th>
                     <th className="px-3 py-2 text-right font-medium">Acumulado</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {cashflow.projection.map((p) => {
+                  {projectionRows.map((p, index) => {
                     const label = monthLabel(p.month);
                     return (
-                      <tr key={p.month} className="border-b border-zinc-50 hover:bg-zinc-50/50">
+                      <tr key={`${p.month}-${index}`} className="border-b border-zinc-50 hover:bg-zinc-50/50">
                         <td className="whitespace-nowrap px-3 py-2 text-xs text-zinc-500">{label}</td>
                         <td className="px-3 py-2 text-right font-mono text-xs text-emerald-600 tabular-nums">
-                          {formatARS(p.totalIncome)}
+                          {p.recurringIncome > 0 ? formatARS(p.recurringIncome) : "-"}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-xs text-emerald-600 tabular-nums">
+                          {p.variableIncome > 0 ? formatARS(p.variableIncome) : "-"}
                         </td>
                         <td className="px-3 py-2 text-right font-mono text-xs text-red-600 tabular-nums">
-                          {formatARS(p.recurringExpense)}
+                          {p.recurringExpense > 0 ? formatARS(p.recurringExpense) : "-"}
                         </td>
-                        <td className="px-3 py-2 text-right font-mono text-xs text-income tabular-nums">
+                        <td className="px-3 py-2 text-right font-mono text-xs text-red-500 tabular-nums">
                           {p.subscriptionExpense > 0 ? formatARS(p.subscriptionExpense) : "-"}
                         </td>
                         <td className="px-3 py-2 text-right font-mono text-xs text-red-500 tabular-nums">
@@ -343,21 +394,21 @@ export default function ProjectionsPage() {
           <CardContent>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-zinc-500">Ingresos recurrentes</span>
+                  <span className="text-zinc-500">Ingresos fijos recurrentes</span>
                 <span className="font-mono text-emerald-600 tabular-nums">
                   {formatARS(cashflow.breakdown.recurringIncome)}
                 </span>
               </div>
               {cashflow.breakdown.variableIncome > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-zinc-500">Ingresos variables (promedio)</span>
+                  <span className="text-zinc-500">Ingreso variable mensual estimado</span>
                   <span className="font-mono text-emerald-600 tabular-nums">
                     {formatARS(cashflow.breakdown.variableIncome)}
                   </span>
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-zinc-500">Gastos recurrentes</span>
+                  <span className="text-zinc-500">Gastos fijos recurrentes</span>
                 <span className="font-mono text-red-600 tabular-nums">
                   {formatARS(cashflow.breakdown.recurringExpense)}
                 </span>
@@ -371,14 +422,14 @@ export default function ProjectionsPage() {
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-zinc-500">Gastos variables (promedio)</span>
+                  <span className="text-zinc-500">Gastos variables estimados</span>
                 <span className="font-mono text-red-600 tabular-nums">
                   {formatARS(cashflow.breakdown.variableExpense)}
                 </span>
               </div>
               {totalPendingInstallments > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-zinc-500">Cuotas pendientes (total)</span>
+                  <span className="text-zinc-500">Cuotas futuras pendientes</span>
                   <span className="font-mono text-red-600 tabular-nums">
                     {formatARS(totalPendingInstallments)}
                   </span>
@@ -386,15 +437,21 @@ export default function ProjectionsPage() {
               )}
               <div className="border-t border-zinc-100 pt-2">
                 <div className="flex justify-between font-medium">
-                  <span className="text-zinc-700">Total gastos mensuales</span>
+                  <span className="text-zinc-700">Gasto mensual base, sin cuotas</span>
                   <span className="font-mono text-red-600 tabular-nums">
-                    {formatARS(totalMonthlyExpense)}
+                    {formatARS(baseMonthlyExpense)}
+                  </span>
+                </div>
+                <div className="mt-1 flex justify-between font-medium">
+                  <span className="text-zinc-700">Gasto mensual proyectado máximo, con cuotas</span>
+                  <span className="font-mono text-red-600 tabular-nums">
+                    {formatARS(maxMonthlyProjectedExpense)}
                   </span>
                 </div>
               </div>
               <div className="border-t border-zinc-100 pt-2">
                 {(() => {
-                  const last = cashflow.projection.at(-1);
+                  const last = projectionRows.at(-1);
                   return (
                     <div className="flex justify-between font-medium">
                       <span className="text-zinc-700">
@@ -427,4 +484,16 @@ function monthLabel(mk: string): string {
     month: "short",
     year: "numeric",
   });
+}
+
+function confidenceLabel(value: "LOW" | "MEDIUM" | "HIGH") {
+  if (value === "HIGH") return "alta";
+  if (value === "MEDIUM") return "media";
+  return "baja";
+}
+
+function confidenceClass(value: "LOW" | "MEDIUM" | "HIGH") {
+  if (value === "HIGH") return "text-emerald-600";
+  if (value === "MEDIUM") return "text-amber-600";
+  return "text-red-600";
 }

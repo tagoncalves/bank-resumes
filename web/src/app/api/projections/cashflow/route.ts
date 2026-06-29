@@ -4,9 +4,7 @@ import { getSession } from "@/lib/auth";
 import { toMoneyNumber } from "@/lib/money";
 
 function addMonths(date: Date, n: number): Date {
-  const d = new Date(date);
-  d.setUTCMonth(d.getUTCMonth() + n);
-  return d;
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + n, 1));
 }
 
 function monthKey(date: Date): string {
@@ -14,11 +12,25 @@ function monthKey(date: Date): string {
 }
 
 function calcMonthlyAmount(amount: number, frequency: string, interval: number): number {
-  if (frequency === "MONTHLY") return amount * interval;
-  if (frequency === "WEEKLY") return amount * interval * 4.33;
-  if (frequency === "YEARLY") return amount * interval / 12;
-  if (frequency === "BIWEEKLY") return amount * interval * 2.17;
+  const safeInterval = Math.max(interval, 1);
+  if (frequency === "MONTHLY") return amount / safeInterval;
+  if (frequency === "WEEKLY") return amount * (52 / 12) / safeInterval;
+  if (frequency === "YEARLY") return amount / (12 * safeInterval);
+  if (frequency === "BIWEEKLY") return amount * (26 / 12) / safeInterval;
   return amount;
+}
+
+function projectionMonths(now: Date, months: number) {
+  return Array.from({ length: months }, (_, index) => {
+    const date = addMonths(now, index + 1);
+    return { date, key: monthKey(date) };
+  });
+}
+
+function estimateConfidence(sampleMonths: number, lookbackMonths: number) {
+  if (sampleMonths >= Math.min(lookbackMonths, 4)) return "HIGH";
+  if (sampleMonths >= 3) return "MEDIUM";
+  return "LOW";
 }
 
 export async function GET(req: NextRequest) {
@@ -32,9 +44,10 @@ export async function GET(req: NextRequest) {
   const lookback = parseInt(searchParams.get("lookback") ?? "6");
 
   const now = new Date();
-  const lookbackFrom = new Date(now);
-  lookbackFrom.setUTCMonth(lookbackFrom.getUTCMonth() - lookback);
-  lookbackFrom.setUTCDate(1);
+  const monthsToProject = projectionMonths(now, months);
+  const firstProjectionMonth = monthsToProject[0]?.date ?? addMonths(now, 1);
+  const projectionMonthKeys = new Set(monthsToProject.map((m) => m.key));
+  const lookbackFrom = addMonths(now, -lookback);
 
   // --- 1. Recurring transactions (both CREDIT and DEBIT) ---
   const recurrings = await prisma.recurringTransaction.findMany({
@@ -50,12 +63,16 @@ export async function GET(req: NextRequest) {
 
   let monthlyRecurringIncome = 0;
   let monthlyRecurringExpense = 0;
+  let recurringIncomeRulesCount = 0;
+  let recurringExpenseRulesCount = 0;
   for (const r of recurrings) {
     const amount = calcMonthlyAmount(toMoneyNumber(r.amountArs), r.frequency, r.interval);
     if (r.transactionType === "CREDIT") {
       monthlyRecurringIncome += amount;
+      recurringIncomeRulesCount += 1;
     } else {
       monthlyRecurringExpense += amount;
+      recurringExpenseRulesCount += 1;
     }
   }
 
@@ -150,7 +167,9 @@ export async function GET(req: NextRequest) {
     const lastDate = g._max.date ?? now;
     for (let i = 1; i <= remaining; i++) {
       const dueDate = addMonths(lastDate, i);
+      if (dueDate < firstProjectionMonth) continue;
       const mk = monthKey(dueDate);
+      if (!projectionMonthKeys.has(mk)) continue;
       installmentsByMonth.set(mk, (installmentsByMonth.get(mk) ?? 0) + amount);
     }
   }
@@ -171,14 +190,11 @@ export async function GET(req: NextRequest) {
   }> = [];
 
   let cumulative = 0;
-  for (let i = 1; i <= months; i++) {
-    const projMonth = addMonths(now, i);
-    const mk = monthKey(projMonth);
+  const baseMonthlyExpense = Math.round(monthlyRecurringExpense + monthlySubscriptionExpense + avgVariableExpense);
+  for (const { key: mk } of monthsToProject) {
     const income = Math.round(monthlyRecurringIncome + avgVariableIncome);
     const installmentExpense = Math.round(installmentsByMonth.get(mk) ?? 0);
-    const expense = Math.round(
-      monthlyRecurringExpense + monthlySubscriptionExpense + installmentExpense + avgVariableExpense,
-    );
+    const expense = baseMonthlyExpense + installmentExpense;
     const net = income - expense;
     cumulative += net;
     projection.push({
@@ -196,12 +212,18 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const totalPendingInstallments = Array.from(installmentsByMonth.entries())
-    .filter(([mk]) => mk >= monthKey(now))
-    .reduce((s, [, v]) => s + v, 0);
+  const totalPendingInstallments = Array.from(installmentsByMonth.values()).reduce((s, v) => s + v, 0);
+  const maxMonthlyProjectedExpense = projection.reduce((max, p) => Math.max(max, p.totalExpense), baseMonthlyExpense);
 
   return NextResponse.json({
     projection,
+    meta: {
+      mode: "projected",
+      startsAtMonth: monthsToProject[0]?.key ?? null,
+      endsAtMonth: monthsToProject.at(-1)?.key ?? null,
+      months,
+      lookbackMonths: lookback,
+    },
     breakdown: {
       recurringIncome: Math.round(monthlyRecurringIncome),
       recurringExpense: Math.round(monthlyRecurringExpense),
@@ -209,13 +231,19 @@ export async function GET(req: NextRequest) {
       subscriptionDetails,
       variableIncome: Math.round(avgVariableIncome),
       variableExpense: Math.round(avgVariableExpense),
+      baseMonthlyExpense,
+      maxMonthlyProjectedExpense,
       incomeMonthsCount: incomeMonths.length,
+      expenseMonthsCount: expenseMonths.length,
+      recurringIncomeRulesCount,
+      recurringExpenseRulesCount,
+      variableIncomeConfidence: estimateConfidence(incomeMonths.length, lookback),
+      variableExpenseConfidence: estimateConfidence(expenseMonths.length, lookback),
     },
     pendingInstallments: {
       totalAmount: Math.round(totalPendingInstallments),
       byMonth: Object.fromEntries(
         Array.from(installmentsByMonth.entries())
-          .filter(([mk]) => mk >= monthKey(now))
           .sort(([a], [b]) => a.localeCompare(b)),
       ),
     },

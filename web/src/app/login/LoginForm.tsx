@@ -14,7 +14,6 @@ type Mode = "login" | "register" | "verify";
 interface PendingVerification {
   username: string;
   email: string;
-  mailtoUrl: string;
 }
 
 export default function LoginForm({ nextPath }: LoginFormProps) {
@@ -88,12 +87,11 @@ export default function LoginForm({ nextPath }: LoginFormProps) {
     const pending = {
       username: data.username as string,
       email: data.email as string,
-      mailtoUrl: data.mailtoUrl as string,
     };
     setPendingVerification(pending);
     setVerifyForm({ username: pending.username, code: "" });
     setMode("verify");
-    setMessage("Cuenta creada. Abrí el correo generado y pegá la clave de validación.");
+    setMessage(data.message ?? "Cuenta creada. Te enviamos la clave de validación por email.");
   }
 
   async function handleVerify(e: FormEvent) {
@@ -178,7 +176,7 @@ export default function LoginForm({ nextPath }: LoginFormProps) {
             <form onSubmit={handleRegister} className="space-y-4">
               <div>
                 <h1 className="text-base font-semibold text-foreground">Crear cuenta</h1>
-                <p className="mt-1 text-xs text-muted">Se generará un correo con una clave para validar tu email.</p>
+                <p className="mt-1 text-xs text-muted">Te enviaremos una clave por correo para validar tu email.</p>
               </div>
               <TextField
                 label="Usuario"
@@ -213,14 +211,6 @@ export default function LoginForm({ nextPath }: LoginFormProps) {
                 <h1 className="text-base font-semibold text-foreground">Validar email</h1>
                 <p className="mt-1 text-xs text-muted">Ingresá la clave recibida por correo para habilitar el login.</p>
               </div>
-              {pendingVerification?.mailtoUrl && (
-                <a
-                  href={pendingVerification.mailtoUrl}
-                  className="block rounded-lg border border-border bg-surface-alt px-3 py-2 text-center text-sm font-medium text-primary hover:bg-[var(--color-hover)]"
-                >
-                  Abrir correo con clave
-                </a>
-              )}
               {pendingVerification?.email && (
                 <p className="text-center text-[11px] text-muted">Destino: {pendingVerification.email}</p>
               )}

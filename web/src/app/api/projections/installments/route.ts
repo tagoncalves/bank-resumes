@@ -1,15 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { toMoneyNumber } from "@/lib/money";
 
 function addMonths(date: Date, n: number): Date {
-  const d = new Date(date);
-  d.setUTCMonth(d.getUTCMonth() + n);
-  return d;
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + n, 1));
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   const session = await getSession();
   if (!session?.userId) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
@@ -29,6 +27,7 @@ export async function GET(req: NextRequest) {
   });
 
   const now = new Date();
+  const firstProjectionMonth = addMonths(now, 1);
   const rows: Array<{
     merchantName: string;
     amountArs: number;
@@ -48,8 +47,11 @@ export async function GET(req: NextRequest) {
     if (current >= total) continue;
     const remaining = total - current;
     const lastDate = g._max.date ?? now;
-    const nextDate = addMonths(lastDate, 1);
-    const endDate = addMonths(lastDate, remaining);
+    const futureDates = Array.from({ length: remaining }, (_, index) => addMonths(lastDate, index + 1))
+      .filter((date) => date >= firstProjectionMonth);
+    if (futureDates.length === 0) continue;
+    const nextDate = futureDates[0];
+    const endDate = futureDates[futureDates.length - 1];
 
     rows.push({
       merchantName: g.merchantName,
@@ -58,7 +60,7 @@ export async function GET(req: NextRequest) {
       cardLastFour: g.cardLastFour,
       totalInstallments: total,
       currentInstallment: current,
-      remaining,
+      remaining: futureDates.length,
       lastDate: lastDate.toISOString().slice(0, 10),
       nextInstallmentDate: nextDate.toISOString().slice(0, 10),
       estimatedEndDate: endDate.toISOString().slice(0, 10),
